@@ -278,6 +278,8 @@ class Ants():
                     bot.do_turn(ants)
                     ants.finish_turn()
                     map_data = ''
+                elif current_line.lower() == 'end':
+                    bot.end()
                 else:
                     map_data += current_line + '\n'
             except EOFError:
