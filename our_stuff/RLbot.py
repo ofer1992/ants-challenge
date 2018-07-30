@@ -4,6 +4,7 @@ import util
 from util import Counter
 
 import collections
+import sys
 
 class frozendict(collections.Mapping):
     """Don't forget the docstrings!!"""
@@ -224,7 +225,7 @@ class QLearningAgent(ReinforcementAgent):
     "You can initialize Q-values here..."
     ReinforcementAgent.__init__(self, actionFn, numTraining, epsilon, alpha, gamma)
     # self.Q = util.Counter()
-    with open("Q.txt", 'rb') as f:
+    with open("Q1.txt", 'rb') as f:
         self.Q = pickle.load(f)
 
   def getQValue(self, state, action):
@@ -233,6 +234,7 @@ class QLearningAgent(ReinforcementAgent):
       Should return 0.0 if we never seen
       a state or (state,action) tuple
     """
+    # sys.stderr.write(str(state)+"\n"+str(action)+"\n")
     return self.Q[state, action]
 
   def getValue(self, state):
@@ -314,12 +316,23 @@ def action_fn(state):
     for d in AIM:
         if passable(state[0], destination(state[2], state[3], state[1], d)):
             actions.append(d)
+    return actions
 
 def gen_state(ants):
-    return frozendict(ants.map), ants.my_ants()[0], ants.rows, ants.cols
+    map = []
+    for i in range(ants.rows):
+        row = []
+        for j in range(ants.cols):
+            row.append(ants.map[i][j])
+        map.append(tuple(row))
+
+    return (tuple(map), ants.my_ants()[0], ants.rows, ants.cols)
 
 def calc_reward(state, action, next_state):
-    return 0
+    if action == 'n':
+        return 1
+    else:
+         return 0
 
 # define a class with a do_turn method
 # the Ants.run method will parse and update bot input
@@ -327,7 +340,7 @@ def calc_reward(state, action, next_state):
 class MyBot:
     def __init__(self):
         # define class level variables, will be remembered between turns
-        self.agent = QLearningAgent(action_fn, 1, 0.5, 0.5, 0.8)
+        self.agent = QLearningAgent(action_fn, 1, 0.9, 0.5, 0.1)
         self.last_state, self.last_action = None, None
 
     # do_setup is run once at the start of the game
@@ -370,16 +383,21 @@ class MyBot:
     def do_turn(self, ants):
         # loop through all my ants and try to give them orders
         # the ant_loc is an ant location tuple in (row, col) form
+
         state = gen_state(ants)
-        reward = calc_reward(self.last_state, self.last_action, state)
-        if not self.last_state:
-            self.agent.update(self.last_state, self.last_action, state, reward)
+
+        # if self.last_state:
+            # reward = calc_reward(self.last_state, self.last_action, state)
+            # self.agent.update(self.last_state, self.last_action, state, reward)
+
         self.last_state = state
-        self.last_action = self.agent.getAction(state)
+        self.last_action = self.agent.getPolicy(state)
+        # if ants.turns == 100:
+        #     self.end()
         ants.issue_order((state[1], self.last_action))
         
     def end(self):
-        with open("Q.txt", 'wb') as f:
+        with open("Q1.txt", 'wb') as f:
             pickle.dump(self.agent.Q, f)
         
 if __name__ == '__main__':
