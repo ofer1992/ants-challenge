@@ -1,4 +1,4 @@
-import util, random, pickle
+import util, random
 
 class ValueEstimationAgent():
   """
@@ -105,46 +105,46 @@ class ReinforcementAgent(ValueEstimationAgent):
     """
     return self.actionFn(state)
 
-  def observeTransition(self, state,action,nextState,deltaReward):
-    """
-    	Called by environment to inform agent that a transition has
-    	been observed. This will result in a call to self.update
-    	on the same arguments
+  # def observeTransition(self, state,action,nextState,deltaReward):
+  #   """
+  #   	Called by environment to inform agent that a transition has
+  #   	been observed. This will result in a call to self.update
+  #   	on the same arguments
+  #
+  #   	NOTE: Do *not* override or call this function
+  #   """
+  #   self.episodeRewards += deltaReward
+  #   self.update(state,action,nextState,deltaReward)
+  #
+  # def startEpisode(self):
+  #   """
+  #     Called by environment when new episode is starting
+  #   """
+  #   self.lastState = None
+  #   self.lastAction = None
+  #   self.episodeRewards = 0.0
+  #
+  # def stopEpisode(self):
+  #   """
+  #     Called by environment when episode is done
+  #   """
+  #   if self.episodesSoFar < self.numTraining:
+  #     self.accumTrainRewards += self.episodeRewards
+  #   else:
+  #     self.accumTestRewards += self.episodeRewards
+  #   self.episodesSoFar += 1
+  #   if self.episodesSoFar >= self.numTraining:
+  #     # Take off the training wheels
+  #     self.epsilon = 0.0    # no exploration
+  #     self.alpha = 0.0      # no learning
+  #
+  # def isInTraining(self):
+  #     return self.episodesSoFar < self.numTraining
+  #
+  # def isInTesting(self):
+  #     return not self.isInTraining()
 
-    	NOTE: Do *not* override or call this function
-    """
-    self.episodeRewards += deltaReward
-    self.update(state,action,nextState,deltaReward)
-
-  def startEpisode(self):
-    """
-      Called by environment when new episode is starting
-    """
-    self.lastState = None
-    self.lastAction = None
-    self.episodeRewards = 0.0
-
-  def stopEpisode(self):
-    """
-      Called by environment when episode is done
-    """
-    if self.episodesSoFar < self.numTraining:
-      self.accumTrainRewards += self.episodeRewards
-    else:
-      self.accumTestRewards += self.episodeRewards
-    self.episodesSoFar += 1
-    if self.episodesSoFar >= self.numTraining:
-      # Take off the training wheels
-      self.epsilon = 0.0    # no exploration
-      self.alpha = 0.0      # no learning
-
-  def isInTraining(self):
-      return self.episodesSoFar < self.numTraining
-
-  def isInTesting(self):
-      return not self.isInTraining()
-
-  def __init__(self, actionFn = None, numTraining=100, epsilon=0.5, alpha=0.5, gamma=1):
+  def __init__(self, actionFn=None, numTraining=100, epsilon=0.5, alpha=0.5, gamma=1):
     """
     actionFn: Function which takes a state and returns the list of legal actions
 
@@ -153,13 +153,14 @@ class ReinforcementAgent(ValueEstimationAgent):
     gamma    - discount factor
     numTraining - number of training episodes, i.e. no learning after these many episodes
     """
+    ValueEstimationAgent.__init__(self, alpha, epsilon, gamma, numTraining)
     if actionFn == None:
         actionFn = lambda state: state.getLegalActions()
     self.actionFn = actionFn
-    self.episodesSoFar = 0
-    self.accumTrainRewards = 0.0
-    self.accumTestRewards = 0.0
-    self.numTraining = int(numTraining)
+    # self.episodesSoFar = 0
+    # self.accumTrainRewards = 0.0
+    # self.accumTestRewards = 0.0
+    # self.numTraining = int(numTraining)
     self.epsilon = float(epsilon)
     self.alpha = float(alpha)
     self.discount = float(gamma)
@@ -200,7 +201,6 @@ class QLearningAgent(ReinforcementAgent):
       Should return 0.0 if we never seen
       a state or (state,action) tuple
     """
-    # sys.stderr.write(str(state)+"\n"+str(action)+"\n")
     return self.Q[state, action]
 
   def getValue(self, state):
@@ -265,47 +265,36 @@ class QLearningAgent(ReinforcementAgent):
     self.Q[state,action] = self.Q[state,action] + \
                         self.alpha*(reward+self.discount*maxQ - self.Q[state,action])
 
-#
-#
-# class ApproximateQAgent(PacmanQAgent):
-#   """
-#      ApproximateQLearningAgent
-#
-#      You should only have to overwrite getQValue
-#      and update.  All other QLearningAgent functions
-#      should work as is.
-#   """
-#   def __init__(self, extractor='IdentityExtractor', **args):
-#     self.featExtractor = util.lookup(extractor, globals())()
-#     PacmanQAgent.__init__(self, **args)
-#
-#     # You might want to initialize weights here.
-#     self.weights = util.Counter()
-#
-#   def getQValue(self, state, action):
-#     """
-#       Should return Q(state,action) = w * featureVector
-#       where * is the dotProduct operator
-#     """
-#     return self.weights * self.featExtractor.getFeatures(state,action)
-#
-#   def update(self, state, action, nextState, reward):
-#     """
-#        Should update your weights based on transition
-#     """
-#     correction = self.alpha*(reward + self.discount * self.getValue(nextState) - self.getQValue(state,action))
-#     features = self.featExtractor.getFeatures(state,action)
-#     for f in features:
-#       features[f] *= correction
-#     self.weights = self.weights + features
-#
-#   def final(self, state):
-#     "Called at the end of each game."
-#     # call the super-class final method
-#     # PacmanQAgent.final(self, state)
-#     pass
-#
-#     # did we finish training?
-#     if self.episodesSoFar == self.numTraining:
-#       # you might want to print your weights here for debugging
-#       pass
+
+
+class ApproximateQAgent(QLearningAgent):
+  """
+     ApproximateQLearningAgent
+
+     You should only have to overwrite getQValue
+     and update.  All other QLearningAgent functions
+     should work as is.
+  """
+  def __init__(self, extractor, actionFn=None, **args):
+    self.featExtractor = extractor()
+    QLearningAgent.__init__(self,actionFn=actionFn, **args)
+
+    # You might want to initialize weights here.
+    self.weights = util.Counter()
+
+  def getQValue(self, state, action):
+    """
+      Should return Q(state,action) = w * featureVector
+      where * is the dotProduct operator
+    """
+    return self.weights * self.featExtractor.getFeatures(state,action)
+
+  def update(self, state, action, nextState, reward):
+    """
+       Should update your weights based on transition
+    """
+    correction = self.alpha*(reward + self.discount * self.getValue(nextState) - self.getQValue(state,action))
+    features = self.featExtractor.getFeatures(state,action)
+    for f in features:
+      features[f] *= correction
+    self.weights = self.weights + features

@@ -43,10 +43,6 @@ except:
 
 from sandbox import RLHouse
 
-# RL agent working directory and command
-RL_WD = os.path.realpath("../our_stuff")
-RL_CMD = "python TestingSandboxBot.py"
-
 class Colorize(object):
     def __init__(self, file, color=color_default):
         self.file = file
@@ -326,7 +322,9 @@ def run_rounds(opts,args):
         "end_wait": opts.end_wait }
 
     # We start the RL sandbox.
-    rl_sandbox = RLHouse(RL_WD, RL_CMD)
+    RL_WD, RL_CMD = get_cmd_wd(args[0], exec_rel_cwd=opts.secure_jail)
+    args = args[1:]
+    rl_sandbox = RLHouse(RL_WD, RL_CMD + " " + str(opts.rounds - 1))
 
     for round in range(opts.rounds):
         # initialize game

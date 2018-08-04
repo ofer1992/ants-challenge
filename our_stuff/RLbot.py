@@ -4,6 +4,7 @@ from agents import QLearningAgent
 import sys
 import pickle
 
+
 def passable(map, loc):
     'true if not water'
     row, col = loc
@@ -43,13 +44,10 @@ def calc_reward(state, action, next_state):
 
 def reward2(ants):
     hills = [a[0] for a in ants.enemy_hills()]
-    if ants.my_ants() and ants.my_ants()[0] in hills:
+    if ants.my_ants()[0] == (11, 5):
+        sys.stderr.write("WON!\n")
         return 500
     return 0
-
-def reward3(state, action, next_state):
-    enemy_hills_reward = len(next_state.enemy_hills()) - len(state.enemy_hills())
-    self_hills_reward = len(next_state.enemy_hills()) - len(state.enemy_hills())
 
 def features(ants):
     def min_distance(l1, l2):
@@ -71,16 +69,19 @@ def features(ants):
     return features
 
 class MyBot:
-    def __init__(self, train):
-        self.agent = QLearningAgent(action_fn, 1, 0.9, 0.5, 0.1)
-        with open("Q.txt", 'rb') as f:
-            Q = pickle.load(f)
-        self.agent.setQ(Q)
+    def __init__(self, train, load_from_file):
+        self.agent = QLearningAgent(action_fn, 1, 0.9, 0.5, 1)
+        if load_from_file:
+            sys.stderr.write("Loaded Q from file\n")
+            with open("Q.txt",   'rb') as f:
+                Q = pickle.load(f)
+            self.agent.setQ(Q)
         self.last_state, self.last_action = None, None
         self.train = train
 
     def do_setup(self, ants):
-        pass
+        self.last_state, self.last_action = None, None
+
 
 
     def do_turn(self, ants):
@@ -97,22 +98,33 @@ class MyBot:
         else:
             self.last_action = self.agent.getPolicy(state)
         ants.issue_order((state[1], self.last_action))
-        
-    def end(self):
+
+    def do_endgame(self, ants):
+        sys.stderr.write(str(ants.my_ants())+"\n")
+        state = gen_state(ants)
+
+        if self.train and self.last_state:
+            reward = reward2(ants)
+            self.agent.update(self.last_state, self.last_action, state, reward)
+
+
+    def save_q(self):
         if self.train:
             with open("Q.txt", 'wb') as f:
                 pickle.dump(self.agent.Q, f)
 
 
-def run(bot):
+def run(bot, training_rounds):
     'parse input, update game state and call the bot classes do_turn method'
     ants = Ants()
     map_data = ''
+    rounds = 0
     while(True):
         try:
             current_line = sys.stdin.readline() # string new line char
             # sys.stderr.write(current_line)
             current_line = current_line.rstrip('\r\n')
+            # sys.stderr.write(current_line + "   outside\n")
 
             if current_line.lower() == 'ready':
                 ants.setup(map_data)
@@ -123,16 +135,35 @@ def run(bot):
                 ants.update(map_data)
                 # call the do_turn method of the class passed in
                 bot.do_turn(ants)
-                b.end()
                 ants.finish_turn()
                 map_data = ''
 
+            # support for multi-game input
             elif current_line.lower() == 'end':
-                sys.stderr.write("here\n")
-                bot.end()
+                # sys.stderr.write("finished game\n")
+                rounds += 1
+                if rounds == training_rounds:
+                    sys.stderr.write("training over. dumping Q\n")
+                    bot.save_q()
+                    bot.train = False
+                current_line = sys.stdin.readline().rstrip('\r\n')
+                while not current_line.startswith('playerturns'):
+                    # sys.stderr.write(current_line+" inside loop 1\n")
+                    current_line = sys.stdin.readline().rstrip('\r\n')
+                # sys.stderr.write(current_line + " after loop 1\n")
+                current_line = sys.stdin.readline().rstrip('\r\n')
+                while current_line != 'go':
+                    # sys.stderr.write(current_line+" inside loop 2\n")
+                    map_data += current_line + '\n'
+                    current_line = sys.stdin.readline().rstrip('\r\n')
+                # sys.stderr.write(current_line + " after loop 2\n")
+                ants.update(map_data)
+                bot.do_endgame(ants)
+                map_data = ''
             else:
                 map_data += current_line + '\n'
         except EOFError:
+            sys.stderr.write("GOT EOF\n")
             break
         except KeyboardInterrupt:
             raise
@@ -154,9 +185,9 @@ if __name__ == '__main__':
         # if run is passed a class with a do_turn method, it will do the work
         # this is not needed, in which case you will need to write your own
         # parsing function and your own game state class
-        train = sys.argv[1] == "train"
-        b = MyBot(train)
-        run(b)
+        training_rounds = int(sys.argv[1])
+        b = MyBot(training_rounds > 0, training_rounds == 0)
+        run(b, training_rounds)
 
     except KeyboardInterrupt:
         print('ctrl-c, leaving ...')
