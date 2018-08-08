@@ -6,6 +6,7 @@ import util
 import copy
 
 
+
 class FeatureExtractor:
   def getFeatures(self, state, action):
     """
@@ -32,6 +33,8 @@ class BasicExtractor(FeatureExtractor):
         map_size = float(ants.cols * ants.rows)
         feats["bias"] = 1.0
 
+        feats["obstacle"] = 0 if ants.passable(new_ant_loc) else 1
+
         if ants.food():
             food_d = min(ants.distance(new_ant_loc, f) for f in ants.food()) / map_size
             feats["food"] = food_d
@@ -50,12 +53,12 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     reward = 0
     new_ant_loc = prev_ants.destination(prev_ants.my_ants()[ant_id], prev_actions[ant_id])
     # dead or tried to walk through barrier TODO: how to identify collision between two ants.
-    if new_ant_loc not in ants.my_ants():
-        reward -= 1
+    # if new_ant_loc not in ants.my_ants():
+    #     reward -= 1
 
     # eating food
     if new_ant_loc in prev_ants.food():
-        reward += 1
+        reward += 100
 
     # stepping on enemy hill
     if new_ant_loc in prev_ants.enemy_hills():
@@ -65,13 +68,14 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     if new_ant_loc in ants.my_hills():
         reward += -1
 
+    # util.printErr(reward)
     return reward
 
 def action_fn(state):
     actions = []
     ants = state[0]
     ant_id = state[1]
-    if not ant_id:
+    if ant_id is None:
         return actions
     for d in AIM:
         if ants.unoccupied(ants.destination(ants.my_ants()[ant_id], d)):
@@ -100,14 +104,12 @@ class ApproxQBot:
 
         if self.train and self.last_state:
             for ant_id in range(len(self.last_state.my_ants())):
-                next_loc = state.direction(self.last_state.my_ants()[ant_id], self.last_action[ant_id])
+                next_loc = state.destination(self.last_state.my_ants()[ant_id], self.last_action[ant_id])
                 reward = get_reward(self.last_state, self.last_action, state, ant_id)
                 next_id = state.my_ants().index(next_loc) if next_loc in state.my_ants() else None
                 self.agent.update((self.last_state, ant_id), self.last_action[ant_id], (state, next_id), reward)
 
         actions = []
-        sys.stderr.write(str(len(state.my_ants()))+"\n")
-        sys.stderr.write(str(state.my_ants())+"\n")
         if self.train:
             for ant_id in range(len(state.my_ants())):
                 actions.append(self.agent.getAction((state, ant_id)))
@@ -130,8 +132,10 @@ class ApproxQBot:
 
         if self.train and self.last_state:
             for ant_id in range(len(self.last_state.my_ants())):
+                next_loc = state.destination(self.last_state.my_ants()[ant_id], self.last_action[ant_id])
                 reward = get_reward(self.last_state, self.last_action, state, ant_id)
-                self.agent.update((self.last_state, ant_id), self.last_action[ant_id], (state, ant_id), reward)
+                next_id = state.my_ants().index(next_loc) if next_loc in state.my_ants() else None
+                self.agent.update((self.last_state, ant_id), self.last_action[ant_id], (state, next_id), reward)
 
 
     def save_q(self):

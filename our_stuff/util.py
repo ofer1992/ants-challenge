@@ -499,3 +499,6 @@ class TimeoutFunction:
             signal.signal(signal.SIGALRM, old)
         signal.alarm(0)
         return result
+
+def printErr(msg):
+  sys.stderr.write(str(msg) + "\n")
