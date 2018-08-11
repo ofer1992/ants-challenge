@@ -31,23 +31,27 @@ class BasicExtractor(FeatureExtractor):
         ant_id = state[1]
         new_ant_loc = ants.destination(ants.my_ants()[ant_id], action)
         map_size = float(ants.cols * ants.rows)
+
         feats["bias"] = 1.0
 
         feats["obstacle"] = 0 if ants.passable(new_ant_loc) else 1
 
         if ants.food():
-            food_d = min(ants.distance(new_ant_loc, f) for f in ants.food()) / map_size
-            feats["food"] = food_d
-            feats["will-eat-food"] = 1 if food_d == 0 else 0
+            food_d = min(ants.distance(new_ant_loc, f) for f in ants.food())
+            feats["food"] = food_d / map_size
+            feats["will-eat-food"] = 1 if food_d == 1 else 0
 
         if ants.enemy_hills():
             enemy_hill_d = min(ants.distance(new_ant_loc, h[0]) for h in ants.enemy_hills()) / map_size
             feats["enemy-hill"] = enemy_hill_d
             feats["will-step-on-enemy-hill"] = 1 if enemy_hill_d == 0 else 0
 
-        feats.divideAll(10.0)
+        # if feats['will-eat-food'] == 1:
+            # sys.stderr.write(str(feats)+"\n")
 
+        feats.divideAll(10.0)
         return feats
+
 
 def get_reward(prev_ants, prev_actions, ants, ant_id):
     reward = 0
@@ -57,8 +61,11 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     #     reward -= 1
 
     # eating food
-    if new_ant_loc in prev_ants.food():
-        reward += 100
+    if prev_ants.food():
+        food_d = min(ants.distance(new_ant_loc, f) for f in prev_ants.food())
+        if food_d == 1:
+            sys.stderr.write("got_food" + "\n")
+            reward += 100
 
     # stepping on enemy hill
     if new_ant_loc in prev_ants.enemy_hills():
@@ -66,7 +73,10 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
 
     # stepping on our hill
     if new_ant_loc in ants.my_hills():
-        reward += -1
+        reward -= 1
+
+    if reward == 0:
+        reward -= 1
 
     # util.printErr(reward)
     return reward
@@ -84,30 +94,28 @@ def action_fn(state):
 
 class ApproxQBot:
     def __init__(self, train, load_from_file):
-        self.agent = ApproximateQAgent(actionFn=action_fn, extractor=BasicExtractor, epsilon=0.5, alpha=0.5, gamma=1)
+        self.agent = ApproximateQAgent(actionFn=action_fn, extractor=BasicExtractor, epsilon=1, alpha=0.5, gamma=1)
         if load_from_file:
-            sys.stderr.write("Loaded Q from file\n")
-            with open("Q.txt",   'rb') as f:
-                Q = pickle.load(f)
-            self.agent.setQ(Q)
-        self.last_state, self.last_action = None, None
+            sys.stderr.write("Loaded weights from file\n")
+            with open("Weights.txt",   'rb') as f:
+                Weights = pickle.load(f)
+            self.agent.setW(Weights)
+        self.prev_state, self.prev_actions = None, None
         self.train = train
 
     def do_setup(self, ants):
-        self.last_state, self.last_action = None, None
+        self.prev_state, self.prev_actions = None, None
 
+    def do_turn(self, state):
 
-
-    def do_turn(self, ants):
-
-        state = ants  # for approxQ, states are not stored in the dictionary, only weights of features.
-
-        if self.train and self.last_state:
-            for ant_id in range(len(self.last_state.my_ants())):
-                next_loc = state.destination(self.last_state.my_ants()[ant_id], self.last_action[ant_id])
-                reward = get_reward(self.last_state, self.last_action, state, ant_id)
-                next_id = state.my_ants().index(next_loc) if next_loc in state.my_ants() else None
-                self.agent.update((self.last_state, ant_id), self.last_action[ant_id], (state, next_id), reward)
+        # Calculate rewards and update Q-Function weights per ant.
+        if self.train and self.prev_state:
+            ants_list = self.prev_state.my_ants()
+            for prev_ant_id in range(len(self.prev_state.my_ants())):
+                curr_loc = state.destination(self.prev_state.my_ants()[prev_ant_id], self.prev_actions[prev_ant_id])
+                reward = get_reward(self.prev_state, self.prev_actions, state, prev_ant_id)
+                curr_id = state.my_ants().index(curr_loc) if curr_loc in state.my_ants() else None
+                self.agent.update((self.prev_state, prev_ant_id), self.prev_actions[prev_ant_id], (state, curr_id), reward)
 
         actions = []
         if self.train:
@@ -120,28 +128,31 @@ class ApproxQBot:
 
         # Issuing new orders
         for ant_id in range(len(state.my_ants())):
-            ants.issue_order((state.my_ants()[ant_id], actions[ant_id]))
+            state.issue_order((state.my_ants()[ant_id], actions[ant_id]))
 
         # saving state and actions for next turn
-        self.last_state = copy.deepcopy(state)
-        self.last_action = actions
+        self.prev_state = copy.deepcopy(state)
+        self.prev_actions = actions
 
 
-    def do_endgame(self, ants):
-        state = ants  # for approxQ, states are not stored in the dictionary, only weights of features.
-
-        if self.train and self.last_state:
-            for ant_id in range(len(self.last_state.my_ants())):
-                next_loc = state.destination(self.last_state.my_ants()[ant_id], self.last_action[ant_id])
-                reward = get_reward(self.last_state, self.last_action, state, ant_id)
+    def do_endgame(self, state):
+        """
+        Called once in end of game to update Q-weights.
+        """
+        sys.stderr.write("Weights:"+str(self.agent.weights)+"\n")
+        if self.train and self.prev_state:
+            for ant_id in range(len(self.prev_state.my_ants())):
+                next_loc = state.destination(self.prev_state.my_ants()[ant_id], self.prev_actions[ant_id])
+                reward = get_reward(self.prev_state, self.prev_actions, state, ant_id)
                 next_id = state.my_ants().index(next_loc) if next_loc in state.my_ants() else None
-                self.agent.update((self.last_state, ant_id), self.last_action[ant_id], (state, next_id), reward)
+                self.agent.update((self.prev_state, ant_id), self.prev_actions[ant_id], (state, next_id), reward)
 
 
-    def save_q(self):
+    def save_weights(self):
+        sys.stderr.write("Weights:"+str(self.agent.weights)+"\n")
         if self.train:
-            with open("Q.txt", 'wb') as f:
-                pickle.dump(self.agent.Q, f)
+            with open("Weights.txt", 'wb') as f:
+                pickle.dump(self.agent.weights, f)
 
 def run(bot, training_rounds):
     'parse input, update game state and call the bot classes do_turn method'
@@ -169,11 +180,12 @@ def run(bot, training_rounds):
 
             # support for multi-game input
             elif current_line.lower() == 'end':
-                # sys.stderr.write("finished game\n")
+                sys.stderr.write("finished game\n")
                 rounds += 1
                 if rounds == training_rounds:
-                    sys.stderr.write("training over. dumping Q\n")
-                    bot.save_q()
+                    sys.stderr.write("training over. dumping weights\n")
+                    bot.save_weights()
+                    sys.stderr.write("finished (steamy) dump!\n")
                     bot.train = False
                 current_line = sys.stdin.readline().rstrip('\r\n')
                 while not current_line.startswith('playerturns'):

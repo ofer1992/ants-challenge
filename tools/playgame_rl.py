@@ -15,6 +15,8 @@ except ImportError:
     from io import StringIO
 
 from ants import Ants
+import time
+
 
 sys.path.append("../worker")
 try:
@@ -468,6 +470,7 @@ def run_rounds(opts,args):
                 else:
                     visualizer.visualize_locally.launch(replay_path,
                             generated_path=opts.html_file)
+    time.sleep(2)
     rl_sandbox.kill_real()
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+python ../tools/playgame_rl.py -e --log_dir game_logs --turns 100 --rounds 1 --map_file ../our_stuff/maps/food_collection.map "python ../our_stuff/AQbot.py" "python ../tools/sample_bots/python/LeftyBot.py"

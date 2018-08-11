@@ -225,7 +225,6 @@ class QLearningAgent(ReinforcementAgent):
     actions = self.getLegalActions(state)
     if not actions:
       return
-
     max_val = max(self.getQValue(state, a) for a in actions)
     best_actions = [a for a in actions if self.getQValue(state,a) == max_val]
     return random.choice(best_actions)
@@ -281,6 +280,9 @@ class ApproximateQAgent(QLearningAgent):
 
     # You might want to initialize weights here.
     self.weights = util.Counter()
+
+  def setW(self, W):
+    self.weights = W
 
   def getQValue(self, state, action):
     """
