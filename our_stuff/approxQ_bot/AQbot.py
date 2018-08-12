@@ -1,8 +1,8 @@
-from ants import *
-from agents import ApproximateQAgent
+from our_stuff.approxQ_bot.ants import *
+from our_stuff.agents import ApproximateQAgent
 import sys
 import pickle
-import util
+import our_stuff.util
 import copy
 
 
@@ -14,19 +14,19 @@ class FeatureExtractor:
       Usually, the count will just be 1.0 for
       indicator functions.
     """
-    util.raiseNotDefined()
+    our_stuff.util.raiseNotDefined()
 
 
 class IdentityExtractor(FeatureExtractor):
   def getFeatures(self, state, action):
-    feats = util.Counter()
+    feats = our_stuff.util.Counter()
     feats[(state,action)] = 1.0
     return feats
 
 
 class BasicExtractor(FeatureExtractor):
     def getFeatures(self, state, action):
-        feats = util.Counter()
+        feats = our_stuff.util.Counter()
         ants = state[0]
         ant_id = state[1]
         new_ant_loc = ants.destination(ants.my_ants()[ant_id], action)
@@ -36,18 +36,27 @@ class BasicExtractor(FeatureExtractor):
 
         feats["obstacle"] = 0 if ants.passable(new_ant_loc) else 1
 
+        # Food
         if ants.food():
-            food_d = min(ants.distance(new_ant_loc, f) for f in ants.food())
+            food_distances = [ants.distance(new_ant_loc, f) for f in ants.food()]
+            food_d = min(food_distances)
+            food_loc = ants.food()[food_distances.index(food_d)]
             feats["food"] = food_d / map_size
             feats["will-eat-food"] = 1 if food_d == 1 else 0
+            ants_distance_from_food = [ants.distance(ant, food_loc) for ant in ants.my_ants()]
+            feats["there-is-a-closer-ant"] = 1 if min(ants_distance_from_food) < ants.distance(new_ant_loc, food_loc) else 0
 
+        # Enemy ants
+
+        # Enemy hills
         if ants.enemy_hills():
             enemy_hill_d = min(ants.distance(new_ant_loc, h[0]) for h in ants.enemy_hills()) / map_size
             feats["enemy-hill"] = enemy_hill_d
             feats["will-step-on-enemy-hill"] = 1 if enemy_hill_d == 0 else 0
 
-        # if feats['will-eat-food'] == 1:
-            # sys.stderr.write(str(feats)+"\n")
+        # Stepping on other ants' new location
+        if new_ant_loc in ants.orders.values():
+            feats["will-collide-with-ant"] = 1
 
         feats.divideAll(10.0)
         return feats
@@ -55,7 +64,8 @@ class BasicExtractor(FeatureExtractor):
 
 def get_reward(prev_ants, prev_actions, ants, ant_id):
     reward = 0
-    new_ant_loc = prev_ants.destination(prev_ants.my_ants()[ant_id], prev_actions[ant_id])
+    prev_ant_loc = prev_ants.my_ants()[ant_id]
+    new_ant_loc = prev_ants.destination_with_obstacles(prev_ants.my_ants()[ant_id], prev_actions[ant_id])
     # dead or tried to walk through barrier TODO: how to identify collision between two ants.
     # if new_ant_loc not in ants.my_ants():
     #     reward -= 1
@@ -64,8 +74,7 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     if prev_ants.food():
         food_d = min(ants.distance(new_ant_loc, f) for f in prev_ants.food())
         if food_d == 1:
-            sys.stderr.write("got_food" + "\n")
-            reward += 100
+            reward += 5
 
     # stepping on enemy hill
     if new_ant_loc in prev_ants.enemy_hills():
@@ -75,11 +84,20 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     if new_ant_loc in ants.my_hills():
         reward -= 1
 
-    if reward == 0:
-        reward -= 1
+    # killing an enemy
+    sys.stderr.write(str(ants.dead_list))
+    for ant in ants.dead_list:
+        if ants.dead_list[ant] != [0]:
+            reward += 5
+
+    # dying
+    if 0 in ants.dead_list[prev_ant_loc] or 0 in ants.dead_list[new_ant_loc]:
+        sys.stderr.write("ant dead" + "\n")
+        sys.stderr.write(str(prev_ant_loc) + " " + str(new_ant_loc) + "\n")
+        reward -= 5
 
     # util.printErr(reward)
-    return reward
+    return reward - 0.1
 
 def action_fn(state):
     actions = []
