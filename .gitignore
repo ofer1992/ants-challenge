@@ -3,3 +3,6 @@
 /.idea/
 *.replay
 *.html
+__init__.py
+Weights.txt
+Q.txt
