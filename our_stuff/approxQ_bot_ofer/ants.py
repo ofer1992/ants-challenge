@@ -148,7 +148,7 @@ class Ants():
     def issue_order(self, order):
         'issue an order by writing the proper ant location and direction'
         (row, col), direction = order
-        self.orders[(row, col)] = self.destination_with_obstacles((row, col), direction)
+        # self.orders[(row, col)] = self.destination_with_obstacles((row, col), direction)
         sys.stdout.write('o %s %s %s\n' % (row, col, direction))
         sys.stdout.flush()
         
@@ -157,7 +157,7 @@ class Ants():
         self.orders = {}
         sys.stdout.write('go\n')
         sys.stdout.flush()
-    
+
     def my_hills(self):
         return [loc for loc, owner in self.hill_list.items()
                     if owner == MY_ANT]
@@ -288,6 +288,14 @@ class Ants():
                 if dead and dead != {0}:
                     dead_enemy_ants.append(tile)
         return friendly_ants, live_enemy_ants, dead_enemy_ants
+
+    def remember_order(self, loc, direction):
+        'add order to order dict'
+        if direction is None:
+            sys.stderr.write("direction is none! investigate\n")
+            return
+        new_loc = self.destination_with_obstacles(loc, direction)
+        self.orders[loc] = new_loc
 
     def render_text_map(self):
         'return a pretty string representing the map'

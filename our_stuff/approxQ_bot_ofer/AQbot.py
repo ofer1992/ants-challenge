@@ -1,4 +1,4 @@
-from our_stuff.approxQ_bot.ants import *
+from ants import *
 from our_stuff.agents import ApproximateQAgent
 import sys
 import pickle
@@ -110,7 +110,7 @@ def action_fn(state):
         return actions
     for d in AIM:
         new_loc = ants.destination_with_obstacles(ants.my_ants()[ant_id], d)
-        sys.stderr.write(str(ants.orders.values())+"\n")
+        # sys.stderr.write(str(ants.orders.values())+"\n")
         if ants.unoccupied(new_loc) and new_loc not in ants.orders.values():
             actions.append(d)
     return actions
@@ -144,9 +144,11 @@ class ApproxQBot:
         if self.train:
             for ant_id in range(len(state.my_ants())):
                 actions.append(self.agent.getAction((state, ant_id)))
+                state.remember_order(state.my_ants()[ant_id], actions[-1])
         else:
             for ant_id in range(len(state.my_ants())):
                 actions.append(self.agent.getPolicy((state, ant_id)))
+                state.remember_order(state.my_ants()[ant_id], actions[-1])
 
 
         # Issuing new orders

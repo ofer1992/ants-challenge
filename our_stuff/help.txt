@@ -2,7 +2,7 @@ Hello fellow enemies!
 
 To run your RL bot, I recommend creating two configuration for running playgame_rl.py, located in tools/ directory.
 for training:
---nolaunch --rounds 100 -e --turns 1000 --map_file ../our_stuff/maps/tutorial1.map "python ../our_stuff/approxQ_bot/AQbot.py" "python sample_bots/python/LeftyBot.py"
+--nolaunch --rounds 100 -e --turns 1000 --map_file ../our_stuff/maps/tutorial1.map "python ../our_stuff/approxQ_bot/AQbot.py" "python sample_bots/python/HunterBot.py"
 
 for test:
 -e --turns 100 --rounds 1 --map_file ../our_stuff/maps/tutorial1.map "python ../our_stuff/approxQ_bot/AQbot.py" "python sample_bots/python/HunterBot.py"
