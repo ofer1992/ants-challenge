@@ -148,7 +148,8 @@ class Ants():
     def issue_order(self, order):
         'issue an order by writing the proper ant location and direction'
         (row, col), direction = order
-        # self.orders[(row, col)] = self.destination_with_obstacles((row, col), direction)
+        if direction is None:
+            sys.stderr.write("tried issuing None direction?\n")
         sys.stdout.write('o %s %s %s\n' % (row, col, direction))
         sys.stdout.flush()
         
@@ -191,8 +192,20 @@ class Ants():
         row, col = loc
         return self.map[row][col] in (LAND, DEAD)
 
+    def unoccupied_including_orders(self, loc):
+        'similar to unoccupied, except taking into consideration other ants order'
+        row, col = loc
+        if not self.passable((row, col)):
+            return False
+        if (row, col) in self.orders.values():
+            return False
+        return True
+
+
     def destination(self, loc, direction):
         'calculate a new location given the direction and wrap correctly'
+        if direction is None: # TODO: for now None signifies no action. Open for reconsideration.
+            return loc
         row, col = loc
         d_row, d_col = AIM[direction]
         return ((row + d_row) % self.rows, (col + d_col) % self.cols)
