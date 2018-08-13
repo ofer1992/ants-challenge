@@ -115,7 +115,7 @@ class MyBot:
 
 
 def run(bot, training_rounds):
-    'parse input, update game state and call the bot classes do_turn method '
+    'parse input, update game state and call the bot classes do_turn method'
     ants = Ants()
     map_data = ''
     rounds = 0
