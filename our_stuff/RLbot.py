@@ -115,13 +115,13 @@ class MyBot:
 
 
 def run(bot, training_rounds):
-    'parse input, update game state and call the bot classes do_turn method '
+    'parse input, update game state and call the bot classes do_turn method'
     ants = Ants()
     map_data = ''
     rounds = 0
     while(True):
         try:
-            current_line = sys.stdin.readline() # string new line char
+            current_line = sys.stdin.readline()  # string new line char
             # sys.stderr.write(current_line)
             current_line = current_line.rstrip('\r\n')
             # sys.stderr.write(current_line + "   outside\n")
