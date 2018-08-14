@@ -1,11 +1,15 @@
-from our_stuff.approxQ_bot.ants import *
+from ants import *
 from our_stuff.agents import ApproximateQAgent
 import sys
 import pickle
 import our_stuff.util
 import copy
 
-
+EATING_FOOD_REWARD = 5
+ENEMY_HILL_REWARD = 20
+OWN_HILL_REWARD = -5
+VISION_REWARD = 5
+NEWLY_FOUND_FOOD_REWARD = 1
 
 class FeatureExtractor:
   def getFeatures(self, state, action):
@@ -35,6 +39,7 @@ class BasicExtractor(FeatureExtractor):
         feats["bias"] = 1.0
 
         feats["obstacle"] = 0 if ants.passable(new_ant_loc) else 1
+        # sys.stderr.write(str(feats["obstacle"]) + '\n') # TODO there's an error here, we thinks
 
         # Food
         if ants.food():
@@ -44,18 +49,23 @@ class BasicExtractor(FeatureExtractor):
             feats["food"] = food_d / map_size
             feats["will-eat-food"] = 1 if food_d == 1 else 0
             ants_distance_from_food = [ants.distance(ant, food_loc) for ant in ants.my_ants()]
-            feats["there-is-a-closer-ant"] = 1 if min(ants_distance_from_food) < ants.distance(new_ant_loc, food_loc) else 0
+            # feats["there-is-a-closer-ant"] = 1 if min(ants_distance_from_food) < ants.distance(new_ant_loc, food_loc) else 0
 
-        # Ants in attack range
-        friendly, unfriendly, dead = ants.attack_range_of_loc(new_ant_loc)
-        feats["#-of-enemy-ants-in-range"] = len(unfriendly)
-        feats["#-of-friendly-ants-in-range"] = len(friendly)
+        # Percentage of the map we see
+        ants.visible([0, 0])  # Triggers updating ants.vision
+        vision = sum(row.count(True) for row in ants.vision)
+        feats["ratio-of-map"] = 10 * float(vision) / map_size
 
-        # Enemy hills
-        if ants.enemy_hills():
-            enemy_hill_d = min(ants.distance(new_ant_loc, h[0]) for h in ants.enemy_hills()) / map_size
-            feats["enemy-hill"] = enemy_hill_d
-            feats["will-step-on-enemy-hill"] = 1 if enemy_hill_d == 0 else 0
+        # # Ants in attack range
+        # friendly, unfriendly, dead = ants.attack_range_of_loc(new_ant_loc)
+        # feats["#-of-enemy-ants-in-range"] = len(unfriendly)
+        # feats["#-of-friendly-ants-in-range"] = len(friendly)
+        #
+        # # Enemy hills
+        # if ants.enemy_hills():
+        #     enemy_hill_d = min(ants.distance(new_ant_loc, h[0]) for h in ants.enemy_hills()) / map_size
+        #     feats["enemy-hill"] = enemy_hill_d
+        #     feats["will-step-on-enemy-hill"] = 1 if enemy_hill_d == 0 else 0
 
         # Stepping on other ants' new location
         # if new_ant_loc in ants.orders.values():
@@ -77,47 +87,56 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     if prev_ants.food():
         food_d = min(ants.distance(new_ant_loc, f) for f in prev_ants.food())
         if food_d == 1:
-            reward += 5
+            reward += EATING_FOOD_REWARD
+    #
+    # # stepping on enemy hill
+    # if new_ant_loc in prev_ants.enemy_hills():
+    #     reward += ENEMY_HILL_REWARD
+    #
+    # # stepping on our hill
+    # if new_ant_loc in ants.my_hills():
+    #     reward += OWN_HILL_REWARD
 
-    # stepping on enemy hill
-    if new_ant_loc in prev_ants.enemy_hills():
-        reward += 5
+    # number of newly discovered foods
+    new_food = sum(not prev_ants.visible(food) for food in ants.food())
+    # sys.stderr.write(str(new_food) + '\n')
+    reward += new_food * NEWLY_FOUND_FOOD_REWARD
 
-    # stepping on our hill
-    if new_ant_loc in ants.my_hills():
-        reward -= 1
+    # # killing an enemy
+    # dead_enemies = prev_ants.attack_range_of_loc(prev_ant_loc)[2]
+    # reward += 5 * len(dead_enemies)
 
-    # killing an enemy
-    dead_enemies = prev_ants.attack_range_of_loc(prev_ant_loc)[2]
-    reward += 5 * len(dead_enemies)
+    # # dying
+    # if 0 in ants.dead_list[prev_ant_loc] or 0 in ants.dead_list[new_ant_loc]: # TODO: find out which is the right condition
+    #     # sys.stderr.write("ant dead" + "\n")
+    #     # sys.stderr.write(str(prev_ant_loc) + " " + str(new_ant_loc) + "\n")
+    #     reward -= 5
 
-    # dying
-    if 0 in ants.dead_list[prev_ant_loc] or 0 in ants.dead_list[new_ant_loc]: # TODO: find out which is the right condition
-        # sys.stderr.write("ant dead" + "\n")
-        # sys.stderr.write(str(prev_ant_loc) + " " + str(new_ant_loc) + "\n")
-        reward -= 5
-
-    if reward == 0:
-        reward -= 0.2
+    reward -= 0.2
 
     return reward
 
-def action_fn(state):
+def legal_actions(state):
     actions = []
     ants = state[0]
     ant_id = state[1]
+
+    # This happens when ant has died. The next state is (ants, None)
     if ant_id is None:
+        # sys.stderr.write("action_fn got a state with None ant_id\n")
         return actions
     for d in AIM:
-        new_loc = ants.destination_with_obstacles(ants.my_ants()[ant_id], d)
-        sys.stderr.write(str(ants.orders.values())+"\n")
-        if ants.unoccupied(new_loc) and new_loc not in ants.orders.values():
+        new_loc = ants.destination(ants.my_ants()[ant_id], d)
+        # sys.stderr.write(str(ants.orders.values())+"\n")
+        if ants.unoccupied_including_orders(new_loc):
             actions.append(d)
+    if actions is None:
+        sys.stderr.write("action_fn returned a none\n")
     return actions
 
 class ApproxQBot:
     def __init__(self, train, load_from_file):
-        self.agent = ApproximateQAgent(actionFn=action_fn, extractor=BasicExtractor, epsilon=1, alpha=0.5, gamma=0.9)
+        self.agent = ApproximateQAgent(actionFn=legal_actions, extractor=BasicExtractor, epsilon=1, alpha=0.5, gamma=0.9)
         if load_from_file:
             sys.stderr.write("Loaded weights from file\n")
             with open("Weights.txt",   'rb') as f:
@@ -132,25 +151,33 @@ class ApproxQBot:
     def do_turn(self, state):
 
         # Calculate rewards and update Q-Function weights per ant.
+        # sys.stderr.write('before reward\n')
         if self.train and self.prev_state:
             ants_list = self.prev_state.my_ants()
             for prev_ant_id in range(len(self.prev_state.my_ants())):
+                # sys.stderr.write('before reward loc\n')
                 curr_loc = state.destination(self.prev_state.my_ants()[prev_ant_id], self.prev_actions[prev_ant_id])
+                # sys.stderr.write('before reward calculation\n')
                 reward = get_reward(self.prev_state, self.prev_actions, state, prev_ant_id)
                 curr_id = state.my_ants().index(curr_loc) if curr_loc in state.my_ants() else None
+                # sys.stderr.write('before reward update\n')
                 self.agent.update((self.prev_state, prev_ant_id), self.prev_actions[prev_ant_id], (state, curr_id), reward)
 
+        # sys.stderr.write('before actions\n')
         actions = []
         if self.train:
             for ant_id in range(len(state.my_ants())):
                 actions.append(self.agent.getAction((state, ant_id)))
+                state.remember_order(state.my_ants()[ant_id], actions[-1])
         else:
             for ant_id in range(len(state.my_ants())):
                 actions.append(self.agent.getPolicy((state, ant_id)))
+                state.remember_order(state.my_ants()[ant_id], actions[-1])
 
-
+        # sys.stderr.write('before issuing\n')
         # Issuing new orders
         for ant_id in range(len(state.my_ants())):
+
             state.issue_order((state.my_ants()[ant_id], actions[ant_id]))
 
         # saving state and actions for next turn
@@ -162,7 +189,7 @@ class ApproxQBot:
         """
         Called once in end of game to update Q-weights.
         """
-        sys.stderr.write("Weights:"+str(self.agent.weights)+"\n")
+        # sys.stderr.write("Weights:"+str(self.agent.weights)+"\n")
         if self.train and self.prev_state:
             for ant_id in range(len(self.prev_state.my_ants())):
                 next_loc = state.destination(self.prev_state.my_ants()[ant_id], self.prev_actions[ant_id])
