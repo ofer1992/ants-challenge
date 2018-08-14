@@ -55,6 +55,7 @@ class Ants():
         self.turns = 0
         self.orders = {}
         self.indices_in_attack_range = set()
+        self.edge_of_view = []
 
     def setup(self, data):
         'parse initial input and setup starting game state'
@@ -84,14 +85,50 @@ class Ants():
         self.map = [[LAND for col in range(self.cols)]
                     for row in range(self.rows)]
         self.calc_attack_range_matrix()
+        self.calc_edge_of_view()
+
+    def neighbourhood_offsets(self, max_dist, full=True):
+        """ Return a list of squares within a given distance of loc
+
+            Loc is not included in the list
+            For all squares returned: 0 < distance(loc,square) <= max_dist
+
+            Offsets are calculated so that:
+              -height <= row+offset_row < height (and similarly for col)
+              negative indicies on self.map wrap thanks to python
+        """
+        offsets = []
+        mx = int(sqrt(max_dist))
+        for d_row in range(-mx,mx+1):
+            for d_col in range(-mx,mx+1):
+                d = d_row**2 + d_col**2
+                if full:
+                    if 0 < d <= max_dist:
+                        offsets.append((
+                            d_row%self.rows-self.rows,
+                            d_col%self.cols-self.cols
+                        ))
+                else:
+                    if max_dist -1 < d <= max_dist:
+                        offsets.append((
+                            d_row%self.rows-self.rows,
+                            d_col%self.cols-self.cols
+                        ))
+        return offsets
+
+    def calc_edge_of_view(self):
+        'precalculate edge of view circle'
+        self.edge_of_view = self.neighbourhood_offsets(self.viewradius2, False)
+
 
     def calc_attack_range_matrix(self):
         'precalculate possible relative indices in attack range'
-        attack_range = self.attackradius2**0.5
-        for i in range(int(-attack_range), int(attack_range)):
-            for j in range(int(-attack_range), int(attack_range)):
-                if i**2 + j**2 < self.attackradius2:
-                    self.indices_in_attack_range.add((i,j))
+        # attack_range = self.attackradius2**0.5
+        # for i in range(int(-attack_range), int(attack_range)):
+        #     for j in range(int(-attack_range), int(attack_range)):
+        #         if i**2 + j**2 < self.attackradius2:
+        #             self.indices_in_attack_range.add((i,j))
+        self.indices_in_attack_range = self.neighbourhood_offsets(self.attackradius2)
 
     def update(self, data):
         'parse engine input and update the game state'
@@ -197,6 +234,8 @@ class Ants():
         row, col = loc
         if not self.passable((row, col)):
             return False
+        if self.map[row][col] == FOOD:
+            sys.stderr.write("FOOD BLOCKING\n")
         if (row, col) in self.orders.values():
             return False
         return True
@@ -284,22 +323,41 @@ class Ants():
         row, col = loc
         return self.vision[row][col]
 
-    def attack_range_of_loc(self, loc):
+    def num_of_revealed_on_edge(self, ant_loc, tile):
+        'returns a list of locations on the rim viewradius of and ant at loc'
+        row, col = ant_loc
+        for (d_row, d_col) in self.edge_of_view:
+            edge_tile = self.wrap((row + d_row, col + d_col))
+            # if :
+            #     return True
+        return False
+
+    def attack_range_of_loc(self, loc, prev_ants):
         'return list of allies, enemies and dead enemies'
         row, col = loc
         friendly_ants = []
         live_enemy_ants = []
         dead_enemy_ants = []
         for (i,j) in self.indices_in_attack_range:
-            tile = self.wrap((row + i, col + j))
-            if tile in self.my_ants():
-                friendly_ants.append(tile)
-            elif tile in self.enemy_ants():
-                live_enemy_ants.append(tile)
-            elif tile in self.dead_list:
-                dead = set(self.dead_list)
-                if dead and dead != {0}:
-                    dead_enemy_ants.append(tile)
+            # tile = self.wrap((row + i, col + j))
+            # if tile in self.my_ants():
+            #     friendly_ants.append(tile)
+            # elif tile in self.enemy_ants():
+            #     live_enemy_ants.append(tile)
+            # elif tile in self.dead_list:
+            #     dead = set(self.dead_list)
+            #     if dead and dead != {0}:
+            #         dead_enemy_ants.append(tile)
+
+            tile = self.map[row + i][col + j]
+            tile_loc = self.wrap((row+i, col+j))
+            if tile == 0:
+                friendly_ants.append(tile_loc)
+            elif tile > 0:
+                live_enemy_ants.append(tile_loc)
+            elif tile == DEAD and 0 not in self.dead_list[tile_loc]:
+                dead_enemy_ants.append(tile_loc)
+
         return friendly_ants, live_enemy_ants, dead_enemy_ants
 
     def remember_order(self, loc, direction):
