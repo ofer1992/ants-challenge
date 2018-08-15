@@ -77,7 +77,7 @@ class BasicExtractor(FeatureExtractor):
         feats.divideAll(10.0)
         return feats
 
-
+#remove this comment
 def get_reward(prev_ants, prev_actions, ants, ant_id):
     reward = 0
     prev_ant_loc = prev_ants.my_ants()[ant_id]
