@@ -186,7 +186,8 @@ class Ants():
         'issue an order by writing the proper ant location and direction'
         (row, col), direction = order
         if direction is None:
-            sys.stderr.write("tried issuing None direction?\n")
+            return
+            # sys.stderr.write("tried issuing None direction?\n")
         sys.stdout.write('o %s %s %s\n' % (row, col, direction))
         sys.stdout.flush()
         
@@ -236,7 +237,7 @@ class Ants():
             return False
         if self.map[row][col] == FOOD:
             sys.stderr.write("FOOD BLOCKING\n")
-        if (row, col) in self.orders.values():
+        if (row, col) in self.orders:
             return False
         return True
 
@@ -363,10 +364,11 @@ class Ants():
     def remember_order(self, loc, direction):
         'add order to order dict'
         if direction is None:
-            sys.stderr.write("direction is none! investigate\n")
+            self.orders[loc] = loc
+            # sys.stderr.write("direction is none! investigate\n")
             return
         new_loc = self.destination_with_obstacles(loc, direction)
-        self.orders[loc] = new_loc
+        self.orders[new_loc] = loc
 
     def render_text_map(self):
         'return a pretty string representing the map'

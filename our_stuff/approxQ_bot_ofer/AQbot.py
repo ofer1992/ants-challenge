@@ -5,7 +5,11 @@ import pickle
 import our_stuff.util
 import copy
 
-
+EATING_FOOD_REWARD = 5
+ENEMY_HILL_REWARD = 20
+OWN_HILL_REWARD = -5
+VISION_REWARD = 5
+NEWLY_FOUND_FOOD_REWARD = 1
 
 class FeatureExtractor:
   def getFeatures(self, state, action):
@@ -35,7 +39,8 @@ class BasicExtractor(FeatureExtractor):
         feats["bias"] = 1.0
 
         feats["obstacle"] = 0 if ants.passable(new_ant_loc) else 1
-
+        if feats["obstacle"] == 1:
+            sys.stderr.write("obstacles was 1\n")
         # Food
         if ants.food():
             food_distances = [ants.distance(new_ant_loc, f) for f in ants.food()]
@@ -82,15 +87,20 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     if prev_ants.food():
         food_d = min(ants.distance(new_ant_loc, f) for f in prev_ants.food())
         if food_d == 1:
-            reward += 5
+            reward += EATING_FOOD_REWARD
+    #
+    # # stepping on enemy hill
+    # if new_ant_loc in prev_ants.enemy_hills():
+    #     reward += ENEMY_HILL_REWARD
+    #
+    # # stepping on our hill
+    # if new_ant_loc in ants.my_hills():
+    #     reward += OWN_HILL_REWARD
 
-    # stepping on enemy hill
-    if new_ant_loc in prev_ants.enemy_hills():
-        reward += 5
-
-    # stepping on our hill
-    if new_ant_loc in ants.my_hills():
-        reward -= 1
+    # number of newly discovered foods
+    new_food = sum(not prev_ants.visible(food) for food in ants.food())
+    # sys.stderr.write(str(new_food) + '\n')
+    reward += new_food * NEWLY_FOUND_FOOD_REWARD
 
     # # killing an enemy
     # dead_enemies = prev_ants.attack_range_of_loc(prev_ant_loc, prev_ants)[2]
@@ -123,7 +133,8 @@ def legal_actions(state):
             # if new_loc in ants.my_ants():
             #     sys.stderr.write("WTFMATE\n")
     if actions is None:
-        sys.stderr.write("action_fn returned a none\n")
+        pass
+        # sys.stderr.write("action_fn returned a none\n")
     return actions
 
 class ApproxQBot:
