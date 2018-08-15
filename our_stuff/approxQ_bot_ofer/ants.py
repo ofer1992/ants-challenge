@@ -18,6 +18,8 @@ HILL_ANT = string = 'ABCDEFGHIJ'
 PLAYER_HILL = string = '0123456789'
 MAP_OBJECT = '?%*.!'
 MAP_RENDER = PLAYER_ANT + HILL_ANT + PLAYER_HILL + MAP_OBJECT
+NOOP = "No-Op"
+
 
 AIM = {'n': (-1, 0),
        'e': (0, 1),
@@ -53,7 +55,9 @@ class Ants():
         self.attackradius2 = 0
         self.spawnradius2 = 0
         self.turns = 0
+        self.turns_so_far = 0
         self.orders = {}
+        self.orders2 = {}
         self.indices_in_attack_range = set()
         self.edge_of_view = []
 
@@ -86,6 +90,7 @@ class Ants():
                     for row in range(self.rows)]
         self.calc_attack_range_matrix()
         self.calc_edge_of_view()
+        self.turns_so_far = 0
 
     def neighbourhood_offsets(self, max_dist, full=True):
         """ Return a list of squares within a given distance of loc
@@ -185,15 +190,15 @@ class Ants():
     def issue_order(self, order):
         'issue an order by writing the proper ant location and direction'
         (row, col), direction = order
-        if direction is None:
-            return
-            # sys.stderr.write("tried issuing None direction?\n")
-        sys.stdout.write('o %s %s %s\n' % (row, col, direction))
-        sys.stdout.flush()
+        self.orders2[(row, col)] = direction
+        if direction != NOOP:
+            sys.stdout.write('o %s %s %s\n' % (row, col, direction))
+            sys.stdout.flush()
         
     def finish_turn(self):
         'finish the turn by writing the go line'
         self.orders = {}
+        self.turns_so_far += 1
         sys.stdout.write('go\n')
         sys.stdout.flush()
 
@@ -236,7 +241,9 @@ class Ants():
         if not self.passable((row, col)):
             return False
         if self.map[row][col] == FOOD:
-            sys.stderr.write("FOOD BLOCKING\n")
+            return False
+        if self.map[row][col] == MY_ANT:
+            return False
         if (row, col) in self.orders:
             return False
         return True
@@ -244,30 +251,34 @@ class Ants():
 
     def destination(self, loc, direction):
         'calculate a new location given the direction and wrap correctly'
-        if direction is None: # TODO: for now None signifies no action. Open for reconsideration.
+        if direction is NOOP: # TODO: for now None signifies no action. Open for reconsideration.
             return loc
         row, col = loc
         d_row, d_col = AIM[direction]
         return ((row + d_row) % self.rows, (col + d_col) % self.cols)
 
     def wrap(self, loc):
+        'wrap coordinates'
         row, col = loc
-        return (row % self.rows, col % self.cols)
+        return row % self.rows, col % self.cols
 
     def destination_with_obstacles(self, loc, direction):
         'add a test for passability of new location and return old location if not'
         new_loc = self.destination(loc, direction)
-        if not self.passable(new_loc):
+        if not self.passable(new_loc): # TODO: Add test for food?
             return loc
         return new_loc
 
-    def distance(self, loc1, loc2):
+    def distance_manhattan(self, loc1, loc2):
         'calculate the closest distance between to locations'
         row1, col1 = loc1
         row2, col2 = loc2
         d_col = min(abs(col1 - col2), self.cols - abs(col1 - col2))
         d_row = min(abs(row1 - row2), self.rows - abs(row1 - row2))
         return d_row + d_col
+
+    def distance_shortest_path(self, loc1, loc2):
+        'calculate shortest path distance using A*'
 
     def direction(self, loc1, loc2):
         'determine the 1 or 2 fastest (closest) directions to reach a location'
@@ -363,10 +374,6 @@ class Ants():
 
     def remember_order(self, loc, direction):
         'add order to order dict'
-        if direction is None:
-            self.orders[loc] = loc
-            # sys.stderr.write("direction is none! investigate\n")
-            return
         new_loc = self.destination_with_obstacles(loc, direction)
         self.orders[new_loc] = loc
 
