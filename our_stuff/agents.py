@@ -1,4 +1,4 @@
-import util, random
+import util, random, math
 
 class ValueEstimationAgent():
   """

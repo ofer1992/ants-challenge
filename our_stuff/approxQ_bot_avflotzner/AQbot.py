@@ -4,6 +4,7 @@ import sys
 import pickle
 import our_stuff.util
 import copy
+import math
 
 EATING_FOOD_REWARD = 5
 ENEMY_HILL_REWARD = 20
@@ -46,7 +47,7 @@ class BasicExtractor(FeatureExtractor):
             food_distances = [ants.distance(new_ant_loc, f) for f in ants.food()]
             food_d = min(food_distances)
             food_loc = ants.food()[food_distances.index(food_d)]
-            feats["food"] = food_d / map_size
+            feats["food"] = 1 - (1 / (1 + math.exp(-0.6 * food_d + 3)))
             feats["will-eat-food"] = 1 if food_d == 1 else 0
             ants_distance_from_food = [ants.distance(ant, food_loc) for ant in ants.my_ants()]
             # feats["there-is-a-closer-ant"] = 1 if min(ants_distance_from_food) < ants.distance(new_ant_loc, food_loc) else 0
@@ -54,7 +55,9 @@ class BasicExtractor(FeatureExtractor):
         # Percentage of the map we see
         ants.visible([0, 0])  # Triggers updating ants.vision
         vision = sum(row.count(True) for row in ants.vision)
-        feats["ratio-of-map"] = 10 * float(vision) / map_size
+        sys.stderr.write("vision: " + str(vision) + '\n')
+        feats["map-vision"] = vision
+        # sys.stderr.write("ratio map feature value is: " + str(feats["ratio-of-map"]) + '\n')
 
         # # Ants in attack range
         # friendly, unfriendly, dead = ants.attack_range_of_loc(new_ant_loc)
@@ -97,10 +100,12 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     # if new_ant_loc in ants.my_hills():
     #     reward += OWN_HILL_REWARD
 
-    # number of newly discovered foods
-    new_food = sum(not prev_ants.visible(food) for food in ants.food())
-    # sys.stderr.write(str(new_food) + '\n')
-    reward += new_food * NEWLY_FOUND_FOOD_REWARD
+    # # number of newly discovered foods
+    # new_food = sum(not prev_ants.visible(food) for food in ants.food())
+    # # sys.stderr.write(str(new_food) + '\n')
+    # reward += new_food * NEWLY_FOUND_FOOD_REWARD
+    # # if new_food > 0:
+    # #     sys.stderr.write("found new food reward: " + str(reward) + '\n')
 
     # # killing an enemy
     # dead_enemies = prev_ants.attack_range_of_loc(prev_ant_loc)[2]
