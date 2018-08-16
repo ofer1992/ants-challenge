@@ -55,8 +55,8 @@ class BasicExtractor(FeatureExtractor):
         # Percentage of the map we see
         ants.visible([0, 0])  # Triggers updating ants.vision
         vision = sum(row.count(True) for row in ants.vision)
-        sys.stderr.write("vision: " + str(vision) + '\n')
-        feats["map-vision"] = vision
+        feats["map-vision"] = vision / map_size
+        # sys.stderr.write("vision: " + str(vision / map_size) + '\n')
         # sys.stderr.write("ratio map feature value is: " + str(feats["ratio-of-map"]) + '\n')
 
         # # Ants in attack range
@@ -101,11 +101,11 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     #     reward += OWN_HILL_REWARD
 
     # # number of newly discovered foods
-    # new_food = sum(not prev_ants.visible(food) for food in ants.food())
+    # new_food = sum([f for food in ants.food() if f not prev_ants.food])
     # # sys.stderr.write(str(new_food) + '\n')
     # reward += new_food * NEWLY_FOUND_FOOD_REWARD
-    # # if new_food > 0:
-    # #     sys.stderr.write("found new food reward: " + str(reward) + '\n')
+    # if new_food > 0:
+    #     sys.stderr.write("found new food reward: " + str(reward) + '\n')
 
     # # killing an enemy
     # dead_enemies = prev_ants.attack_range_of_loc(prev_ant_loc)[2]
