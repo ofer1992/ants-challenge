@@ -13,7 +13,7 @@ id_to_action = {
 
 class NeuroBot:
     def __init__(self):
-        self.agent = NN(OBSERVABILITY_SQUARE_SIZE**2)
+        self.agent = NN(OBSERVABILITY_SQUARE_SIZE**2*5)
 
     def do_setup(self, ants):
         pass

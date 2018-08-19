@@ -16,11 +16,11 @@ WATER = -4
 
 # MAP MATRIX VALUES
 M_SELF = 0
-M_LAND = 0
-M_WATER = 1
-M_ENEMY = 0.5
-M_FRIEND = 0.25
-M_FOOD = 0.75
+M_LAND = np.array([1, 0, 0, 0, 0])
+M_WATER = np.array([0, 1, 0, 0, 0])
+M_ENEMY = np.array([0, 0, 1, 0, 0])
+M_FRIEND = np.array([0, 0, 0, 1, 0])
+M_FOOD = np.array([0, 0, 0, 0, 1])
 
 PLAYER_ANT = 'abcdefghij'
 HILL_ANT = string = 'ABCDEFGHIJ'
@@ -98,7 +98,7 @@ class Ants():
                     self.turns = int(tokens[1])
         self.map = [[LAND for col in range(self.cols)]
                     for row in range(self.rows)]
-        self.map_mat = np.zeros((self.rows, self.cols))
+        self.map_mat = np.full((self.rows, self.cols, len(M_LAND)), M_LAND)
         self.calc_attack_range_matrix()
         self.calc_edge_of_view()
         self.turns_so_far = 0
@@ -401,7 +401,7 @@ class Ants():
             tmp += '# %s\n' % ''.join([MAP_RENDER[col] for col in row])
         return tmp
 
-    def ant_observation(self, loc):
+    def ant_observation(self, loc): # TODO: verify that it is working correctly
         side = OBSERVABILITY_SQUARE_SIZE / 2
         rows = [i % self.rows for i in range(loc[0]-side, loc[0]+side+1)]
         cols = [i % self.cols for i in range(loc[1] - side, loc[1] + side+1)]
