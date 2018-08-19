@@ -46,18 +46,18 @@ class BasicExtractor(FeatureExtractor):
 
         feats["bias"] = 1.0
 
-        feats["obstacle"] = 0 if ants.passable(new_ant_loc) else 1
-        if feats["obstacle"] == 1:
-            sys.stderr.write("obstacles was 1\n")
+        # feats["obstacle"] = 0 if ants.passable(new_ant_loc) else 1
+        # if feats["obstacle"] == 1:
+        #     sys.stderr.write("obstacles was 1\n")
         # Food
         if ants.food():
-            food_distances = [ants.distance(new_ant_loc, f) for f in ants.food()]
+            food_distances = [ants.distance_manhattan(new_ant_loc, f) for f in ants.food()]
             food_d = min(food_distances)
             food_loc = ants.food()[food_distances.index(food_d)]
             feats["food"] = food_d / map_size
             feats["will-eat-food"] = 1 if food_d == 1 else 0
-            ants_distance_from_food = [ants.distance(ant, food_loc) for ant in ants.my_ants()]
-            feats["there-is-a-closer-ant"] = 1 if min(ants_distance_from_food) < ants.distance(new_ant_loc, food_loc) else 0
+            ants_distance_from_food = [ants.distance_manhattan(ant, food_loc) for ant in ants.my_ants()]
+            feats["there-is-a-closer-ant"] = 1 if min(ants_distance_from_food) < ants.distance_manhattan(new_ant_loc, food_loc) else 0
 
         # Ants in attack range
         friendly, unfriendly, dead = ants.attack_range_of_loc(new_ant_loc, state)
@@ -68,7 +68,7 @@ class BasicExtractor(FeatureExtractor):
 
         # Enemy hills
         if ants.enemy_hills():
-            enemy_hill_d = min(ants.distance(new_ant_loc, h[0]) for h in ants.enemy_hills()) / map_size
+            enemy_hill_d = min(ants.distance_shortest_path(new_ant_loc, h[0]) for h in ants.enemy_hills()) / map_size
             feats["enemy-hill"] = enemy_hill_d
             feats["will-step-on-enemy-hill"] = 1 if enemy_hill_d == 0 else 0
 
@@ -93,7 +93,7 @@ def get_reward(prev_ants, prev_ant_loc, ants, ant_loc):
 
     # eating food
     if prev_ants.food():
-        food_d = min(ants.distance(ant_loc, f) for f in prev_ants.food())
+        food_d = min(ants.distance_manhattan(ant_loc, f) for f in prev_ants.food())
         if food_d == 1:
             reward += EATING_FOOD_REWARD
 
@@ -117,7 +117,7 @@ def get_reward(prev_ants, prev_ant_loc, ants, ant_loc):
     reward += ENEMY_ANT_DEAD_REWARD * len(dead_enemies)
 
 
-    reward -= 0.2
+    reward -= 1
 
     return reward
 
@@ -152,20 +152,8 @@ class ApproxQBot:
         self.accumulated_rewards = 0
 
     def do_turn(self, state):
-
-        # Calculate rewards and update Q-Function weights per ant.
-        # sys.stderr.write('before reward\n')
-        # if self.train and self.prev_state:
-        #     ants_list = self.prev_state.my_ants()
-        #     for prev_ant_id in range(len(self.prev_state.my_ants())):
-        #         # sys.stderr.write('before reward loc\n')
-        #         curr_loc = state.destination(self.prev_state.my_ants()[prev_ant_id], self.prev_actions[prev_ant_id])
-        #         # sys.stderr.write('before reward calculation\n')
-        #         reward = get_reward(self.prev_state, self.prev_actions, state, prev_ant_id)
-        #         curr_id = state.my_ants().index(curr_loc) if curr_loc in state.my_ants() else None
-        #         # sys.stderr.write('before reward update\n')
-        #         self.agent.update((self.prev_state, prev_ant_id), self.prev_actions[prev_ant_id], (state, curr_id), reward)
-
+        sys.stderr.write("Starting turn\n")
+        # sys.stderr.write(str(state.my_ants())+"\n")
         if self.train and self.prev_state:
             for ant in self.prev_state.my_ants():
                 action = self.prev_state.orders2[ant]
@@ -185,6 +173,8 @@ class ApproxQBot:
 
         # saving state and actions for next turn
         self.prev_state = copy.deepcopy(state)
+        sys.stderr.write(str(state.orders2)+"\n")
+        sys.stderr.write(str(state.my_ants())+"\n")
 
     def do_endgame(self, state):
         """

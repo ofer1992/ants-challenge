@@ -1,76 +1,136 @@
-"""
-In search.py, you will implement generic search algorithms
-"""
+"""Search (Chapters 3-4)
 
-import util
+The way to use this code is to subclass Problem to create a class of problems,
+then create problem instances and solve them with calls to the various search
+functions."""
+
+from utils import (
+    is_in, argmin, argmax, argmax_random_tie, probability, weighted_sampler,
+    memoize, print_table, open_data, PriorityQueue, name,
+    distance, vector_add
+)
+
+from collections import defaultdict, deque
+import math
+import random
+import sys
+import bisect
+from operator import itemgetter
 
 
-class SearchProblem:
-    """
-    This class outlines the structure of a search problem, but doesn't implement
-    any of the methods (in object-oriented terminology: an abstract class).
+infinity = float('inf')
 
-    You do not need to change anything in this class, ever.
-    """
+# ______________________________________________________________________________
 
-    def get_start_state(self):
-        """
-        Returns the start state for the search problem
-        """
-        util.raiseNotDefined()
 
-    def is_goal_state(self, state):
-        """
-        state: Search state
+class Problem(object):
 
-        Returns True if and only if the state is a valid goal state
-        """
-        util.raiseNotDefined()
+    """The abstract class for a formal problem. You should subclass
+    this and implement the methods actions and result, and possibly
+    __init__, goal_test, and path_cost. Then you will create instances
+    of your subclass and solve them with the various search functions."""
 
-    def get_successors(self, state):
-        """
-        state: Search state
+    def __init__(self, initial, goal=None):
+        """The constructor specifies the initial state, and possibly a goal
+        state, if there is a unique goal. Your subclass's constructor can add
+        other arguments."""
+        self.initial = initial
+        self.goal = goal
 
-        For a given state, this should return a list of triples,
-        (successor, action, stepCost), where 'successor' is a
-        successor to the current state, 'action' is the action
-        required to get there, and 'stepCost' is the incremental
-        cost of expanding to that successor
-        """
-        util.raiseNotDefined()
+    def actions(self, state):
+        """Return the actions that can be executed in the given
+        state. The result would typically be a list, but if there are
+        many actions, consider yielding them one at a time in an
+        iterator, rather than building them all at once."""
+        raise NotImplementedError
 
-    def get_cost_of_actions(self, actions):
-        """
-        actions: A list of actions to take
+    def result(self, state, action):
+        """Return the state that results from executing the given
+        action in the given state. The action must be one of
+        self.actions(state)."""
+        raise NotImplementedError
 
-        This method returns the total cost of a particular sequence of actions.  The sequence must
-        be composed of legal moves
-        """
-        util.raiseNotDefined()
+    def goal_test(self, state):
+        """Return True if the state is a goal. The default method compares the
+        state to self.goal or checks for state in self.goal if it is a
+        list, as specified in the constructor. Override this method if
+        checking against a single self.goal is not enough."""
+        if isinstance(self.goal, list):
+            return is_in(state, self.goal)
+        else:
+            return state == self.goal
+
+    def path_cost(self, c, state1, action, state2):
+        """Return the cost of a solution path that arrives at state2 from
+        state1 via action, assuming cost c to get up to state1. If the problem
+        is such that the path doesn't matter, this function will only look at
+        state2.  If the path does matter, it will consider c and maybe state1
+        and action. The default method costs 1 for every step in the path."""
+        return c + 1
+
+    def value(self, state):
+        """For optimization problems, each state has a value.  Hill-climbing
+        and related algorithms try to maximize this value."""
+        raise NotImplementedError
+# ______________________________________________________________________________
 
 
 class Node:
-    """
-    Node class. Encapsulates node in search tree. Each node retains it's state,
-    parent, action leading to it, and path cost in search tree.
-    """
-    def __init__(self, state, parent=None, action=None, cost=0):
+
+    """A node in a search tree. Contains a pointer to the parent (the node
+    that this is a successor of) and to the actual state for this node. Note
+    that if a state is arrived at by two paths, then there are two nodes with
+    the same state.  Also includes the action that got us to this state, and
+    the total path_cost (also known as g) to reach the node.  Other functions
+    may add an f and h value; see best_first_graph_search and astar_search for
+    an explanation of how the f and h values are handled. You will not need to
+    subclass this class."""
+
+    def __init__(self, state, parent=None, action=None, path_cost=0):
+        """Create a search tree Node, derived from a parent by an action."""
         self.state = state
         self.parent = parent
         self.action = action
-        self.cost = cost
+        self.path_cost = path_cost
+        self.depth = 0
+        if parent:
+            self.depth = parent.depth + 1
 
-    def actions_to_node(self):
-        node = self
-        actions = []
-        while node.action:
-            actions.append(node.action)
+    def __repr__(self):
+        return "<Node {}>".format(self.state)
+
+    def __lt__(self, node):
+        return self.state < node.state
+
+    def expand(self, problem):
+        """List the nodes reachable in one step from this node."""
+        return [self.child_node(problem, action)
+                for action in problem.actions(self.state)]
+
+    def child_node(self, problem, action):
+        """[Figure 3.10]"""
+        next_state = problem.result(self.state, action)
+        next_node = Node(next_state, self, action,
+                    problem.path_cost(self.path_cost, self.state,
+                                      action, next_state))
+        return next_node
+    
+    def solution(self):
+        """Return the sequence of actions to go from the root to this node."""
+        return [node.action for node in self.path()[1:]]
+
+    def path(self):
+        """Return a list of nodes forming the path from the root to this node."""
+        node, path_back = self, []
+        while node:
+            path_back.append(node)
             node = node.parent
-        return list(reversed(actions))
+        return list(reversed(path_back))
 
-    def get_succesors(self, problem):
-        return [Node(state, self, action, self.cost +step_cost)
-                for state, action, step_cost in problem.get_successors(self.state)]
+    # We want for a queue of nodes in breadth_first_graph_search or
+    # astar_search to have no duplicated states, so we treat nodes
+    # with the same state as equal. [Problem: this may not be what you
+    # want in other contexts.]
 
     def __eq__(self, other):
         return isinstance(other, Node) and self.state == other.state
@@ -78,136 +138,275 @@ class Node:
     def __hash__(self):
         return hash(self.state)
 
+# ______________________________________________________________________________
 
-def depth_first_search(problem):
-    """
-    Search the deepest nodes in the search tree first.
 
-    Your search algorithm needs to return a list of actions that reaches
-    the goal. Make sure to implement a graph search algorithm.
+class SimpleProblemSolvingAgentProgram:
 
-    To get started, you might want to try some of these simple commands to
-    understand the search problem that is being passed in:
+    """Abstract framework for a problem-solving agent. [Figure 3.1]"""
 
-    print("Start:", problem.getStartState())
-    print("Is the start a goal?", problem.isGoalState(problem.getStartState()))
-    print("Start's successors:", problem.getSuccessors(problem.getStartState()))
-    """
+    def __init__(self, initial_state=None):
+        """State is an abstract representation of the state
+        of the world, and seq is the list of actions required
+        to get to a particular state from the initial state(root)."""
+        self.state = initial_state
+        self.seq = []
 
-    frontier = util.Stack()
-    explored = set()
-    frontier.push(Node(problem.get_start_state()))
-    while not frontier.isEmpty():
+    def __call__(self, percept):
+        """[Figure 3.1] Formulate a goal and problem, then
+        search for a sequence of actions to solve it."""
+        self.state = self.update_state(self.state, percept)
+        if not self.seq:
+            goal = self.formulate_goal(self.state)
+            problem = self.formulate_problem(self.state, goal)
+            self.seq = self.search(problem)
+            if not self.seq:
+                return None
+        return self.seq.pop(0)
+
+    def update_state(self, state, percept):
+        raise NotImplementedError
+
+    def formulate_goal(self, state):
+        raise NotImplementedError
+
+    def formulate_problem(self, state, goal):
+        raise NotImplementedError
+
+    def search(self, problem):
+        raise NotImplementedError
+
+# ______________________________________________________________________________
+# Uninformed Search algorithms
+
+
+def breadth_first_tree_search(problem):
+    """Search the shallowest nodes in the search tree first.
+        Search through the successors of a problem to find a goal.
+        The argument frontier should be an empty queue.
+        Repeats infinitely in case of loops. [Figure 3.7]"""
+
+    frontier = deque([Node(problem.initial)])  # FIFO queue
+
+    while frontier:
+        node = frontier.popleft()
+        if problem.goal_test(node.state):
+            return node
+        frontier.extend(node.expand(problem))
+    return None
+
+
+def depth_first_tree_search(problem):
+    """Search the deepest nodes in the search tree first.
+        Search through the successors of a problem to find a goal.
+        The argument frontier should be an empty queue.
+        Repeats infinitely in case of loops. [Figure 3.7]"""
+
+    frontier = [Node(problem.initial)]  # Stack
+
+    while frontier:
         node = frontier.pop()
-        if problem.is_goal_state(node.state):
-            return node.actions_to_node()
-        explored.add(node.state)
-        for child in node.get_succesors(problem):
-            if child.state not in explored and child not in frontier.list:
-                frontier.push(child)
+        if problem.goal_test(node.state):
+            return node
+        frontier.extend(node.expand(problem))
+    return None
 
-    return []
 
-def breadth_first_search(problem):
-    """
-    Search the shallowest nodes in the search tree first.
-    """
-    frontier = util.Queue()
+def depth_first_graph_search(problem):
+    """Search the deepest nodes in the search tree first.
+        Search through the successors of a problem to find a goal.
+        The argument frontier should be an empty queue.
+        Does not get trapped by loops.
+        If two paths reach a state, only use the first one. [Figure 3.7]"""
+    frontier = [(Node(problem.initial))]  # Stack
     explored = set()
-    frontier.push(Node(problem.get_start_state()))
-
-    while not frontier.isEmpty():
+    while frontier:
         node = frontier.pop()
-        if problem.is_goal_state(node.state):
-            return node.actions_to_node()
+        if problem.goal_test(node.state):
+            return node
         explored.add(node.state)
-        for child in node.get_succesors(problem):
-            if child.state not in explored and child not in frontier.list:
-                if problem.is_goal_state(child.state):
-                    return child.actions_to_node()
-                frontier.push(child)
-
-    return []
+        frontier.extend(child for child in node.expand(problem)
+                        if child.state not in explored and
+                        child not in frontier)
+    return None
 
 
-class PriorityQueueDecorator:
+def breadth_first_graph_search(problem):
+    """[Figure 3.11]
+    Note that this function can be implemented in a
+    single line as below:
+    return graph_search(problem, FIFOQueue())
     """
-    Decorator for util.PriorityQueue. adds functionality for membership testing
-    and retrieval of priority.
-    """
-    def __init__(self, queue):
-        self.pq = queue
-        # dictionary of states and their priority
-        self.priority_dict = dict()
-
-    def push(self, item, priority):
-        self.priority_dict[item.state] = priority
-        self.pq.push(item, priority)
-
-    def pop(self):
-        item = self.pq.pop()
-        self.priority_dict.pop(item.state)
-        return item
-
-    def get_priority(self, item):
-        return self.priority_dict[item.state]
-
-    def isEmpty(self):
-        return self.pq.isEmpty()
-
-    def __contains__(self, item):
-        return item.state in self.priority_dict
-
-
-def best_first_search(problem, f):
-    """
-    General best first search according to priority function f.
-    :param problem:
-    :param f:
-    :return:
-    """
-    frontier = PriorityQueueDecorator(util.PriorityQueue())
+    node = Node(problem.initial)
+    if problem.goal_test(node.state):
+        return node
+    frontier = deque([node])
     explored = set()
-    frontier.push(Node(problem.get_start_state()), 0)
-
-    while not frontier.isEmpty():
-        node = frontier.pop()
-        if problem.is_goal_state(node.state):
-            return node.actions_to_node()
+    while frontier:
+        node = frontier.popleft()
         explored.add(node.state)
-
-        for child in node.get_succesors(problem):
+        for child in node.expand(problem):
             if child.state not in explored and child not in frontier:
-                frontier.push(child, f(child))
-            elif child in frontier:
-                if f(child) < frontier.get_priority(child):
-                    frontier.push(child, f(child))
+                if problem.goal_test(child.state):
+                    return child
+                frontier.append(child)
+    return None
 
-    return []
+
+def best_first_graph_search(problem, f):
+    """Search the nodes with the lowest f scores first.
+    You specify the function f(node) that you want to minimize; for example,
+    if f is a heuristic estimate to the goal, then we have greedy best
+    first search; if f is node.depth then we have breadth-first search.
+    There is a subtlety: the line "f = memoize(f, 'f')" means that the f
+    values will be cached on the nodes as they are computed. So after doing
+    a best first search you can examine the f values of the path returned."""
+    f = memoize(f, 'f')
+    node = Node(problem.initial)
+    if problem.goal_test(node.state):
+        return node
+    frontier = PriorityQueue('min', f)
+    frontier.append(node)
+    explored = set()
+    while frontier:
+        node = frontier.pop()
+        if problem.goal_test(node.state):
+            return node
+        explored.add(node.state)
+        for child in node.expand(problem):
+            if child.state not in explored and child not in frontier:
+                frontier.append(child)
+            elif child in frontier:
+                incumbent = frontier[child]
+                if f(child) < f(incumbent):
+                    del frontier[incumbent]
+                    frontier.append(child)
+    return None
+
 
 def uniform_cost_search(problem):
-    """
-    Search the node of least total cost first.
-    """
-    return best_first_search(problem, lambda n: n.cost)
-
-def null_heuristic(state, problem=None):
-    """
-    A heuristic function estimates the cost from the current state to the nearest
-    goal in the provided SearchProblem.  This heuristic is trivial.
-    """
-    return 0
+    """[Figure 3.14]"""
+    return best_first_graph_search(problem, lambda node: node.path_cost)
 
 
-def a_star_search(problem, heuristic=null_heuristic):
-    """
-    Search the node that has the lowest combined cost and heuristic first.
-    """
-    return best_first_search(problem, lambda n: n.cost + heuristic(n.state, problem))
+def depth_limited_search(problem, limit=50):
+    """[Figure 3.17]"""
+    def recursive_dls(node, problem, limit):
+        if problem.goal_test(node.state):
+            return node
+        elif limit == 0:
+            return 'cutoff'
+        else:
+            cutoff_occurred = False
+            for child in node.expand(problem):
+                result = recursive_dls(child, problem, limit - 1)
+                if result == 'cutoff':
+                    cutoff_occurred = True
+                elif result is not None:
+                    return result
+            return 'cutoff' if cutoff_occurred else None
+
+    # Body of depth_limited_search:
+    return recursive_dls(Node(problem.initial), problem, limit)
 
 
-# Abbreviations
-bfs = breadth_first_search
-dfs = depth_first_search
-astar = a_star_search
-ucs = uniform_cost_search
+def iterative_deepening_search(problem):
+    """[Figure 3.18]"""
+    for depth in range(sys.maxsize):
+        result = depth_limited_search(problem, depth)
+        if result != 'cutoff':
+            return result
+
+# ______________________________________________________________________________
+# Bidirectional Search
+# Pseudocode from https://webdocs.cs.ualberta.ca/%7Eholte/Publications/MM-AAAI2016.pdf
+
+def bidirectional_search(problem):
+    e = problem.find_min_edge()
+    gF, gB = {problem.initial : 0}, {problem.goal : 0}
+    openF, openB = [problem.initial], [problem.goal]
+    closedF, closedB = [], []
+    U = infinity
+
+
+    def extend(U, open_dir, open_other, g_dir, g_other, closed_dir):
+        """Extend search in given direction"""
+        n = find_key(C, open_dir, g_dir)
+
+        open_dir.remove(n)
+        closed_dir.append(n)
+
+        for c in problem.actions(n):
+            if c in open_dir or c in closed_dir:
+                if g_dir[c] <= problem.path_cost(g_dir[n], n, None, c):
+                    continue
+
+                open_dir.remove(c)
+
+            g_dir[c] = problem.path_cost(g_dir[n], n, None, c)
+            open_dir.append(c)
+
+            if c in open_other:
+                U = min(U, g_dir[c] + g_other[c])
+
+        return U, open_dir, closed_dir, g_dir
+
+
+    def find_min(open_dir, g):
+        """Finds minimum priority, g and f values in open_dir"""
+        m, m_f = infinity, infinity
+        for n in open_dir:
+            f = g[n] + problem.h(n)
+            pr = max(f, 2*g[n])
+            m = min(m, pr)
+            m_f = min(m_f, f)
+
+        return m, m_f, min(g.values())
+
+
+    def find_key(pr_min, open_dir, g):
+        """Finds key in open_dir with value equal to pr_min
+        and minimum g value."""
+        m = infinity
+        state = -1
+        for n in open_dir:
+            pr = max(g[n] + problem.h(n), 2*g[n])
+            if pr == pr_min:
+                if g[n] < m:
+                    m = g[n]
+                    state = n
+
+        return state
+
+
+    while openF and openB:
+        pr_min_f, f_min_f, g_min_f = find_min(openF, gF)
+        pr_min_b, f_min_b, g_min_b = find_min(openB, gB)
+        C = min(pr_min_f, pr_min_b)
+
+        if U <= max(C, f_min_f, f_min_b, g_min_f + g_min_b + e):
+            return U
+
+        if C == pr_min_f:
+            # Extend forward
+            U, openF, closedF, gF = extend(U, openF, openB, gF, gB, closedF)
+        else:
+            # Extend backward
+            U, openB, closedB, gB = extend(U, openB, openF, gB, gF, closedB)
+
+    return infinity
+
+# ______________________________________________________________________________
+# Informed (Heuristic) Search
+
+
+greedy_best_first_graph_search = best_first_graph_search
+# Greedy best-first search is accomplished by specifying f(n) = h(n).
+
+
+def astar_search(problem, h=None):
+    """A* search is best-first graph search with f(n) = g(n)+h(n).
+    You need to specify the h function when you call astar_search, or
+    else in your Problem subclass."""
+    h = memoize(h or problem.h, 'h')
+    return best_first_graph_search(problem, lambda n: n.path_cost + h(n))
