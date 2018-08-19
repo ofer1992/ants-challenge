@@ -5,7 +5,7 @@ import random
 import time
 from collections import defaultdict
 from math import sqrt
-from search import Problem, astar_search
+import numpy as np
 
 MY_ANT = 0
 ANTS = 0
@@ -14,6 +14,14 @@ LAND = -2
 FOOD = -3
 WATER = -4
 
+# MAP MATRIX VALUES
+M_SELF = 0
+M_LAND = 0
+M_WATER = 1
+M_ENEMY = 0.5
+M_FRIEND = 0.25
+M_FOOD = 0.75
+
 PLAYER_ANT = 'abcdefghij'
 HILL_ANT = string = 'ABCDEFGHIJ'
 PLAYER_HILL = string = '0123456789'
@@ -21,6 +29,7 @@ MAP_OBJECT = '?%*.!'
 MAP_RENDER = PLAYER_ANT + HILL_ANT + PLAYER_HILL + MAP_OBJECT
 NOOP = "No-Op"
 
+OBSERVABILITY_SQUARE_SIZE = 17
 
 AIM = {'n': (-1, 0),
        'e': (0, 1),
@@ -38,47 +47,6 @@ BEHIND = {'n': 's',
           's': 'n',
           'e': 'w',
           'w': 'e'}
-
-class AntsSearch(Problem):
-
-    def __init__(self, ants, start, goal):
-        Problem.__init__(self, start, goal)
-        self.ants = ants
-        self.start = start
-        self.goal = goal
-
-    def actions(self, state):
-        """Return the actions that can be executed in the given
-        state. The result would typically be a list, but if there are
-        many actions, consider yielding them one at a time in an
-        iterator, rather than building them all at once."""
-        actions = []
-        for a in AIM:
-            new_loc = self.ants.destination(state, a)
-            if self.ants.passable(new_loc):
-                actions.append(a)
-        return actions
-
-    def result(self, state, action):
-        """Return the state that results from executing the given
-        action in the given state. The action must be one of
-        self.actions(state)."""
-        return self.ants.destination(state, action)
-
-    def goal_test(self, state):
-        """Return True if the state is a goal. The default method compares the
-        state to self.goal or checks for state in self.goal if it is a
-        list, as specified in the constructor. Override this method if
-        checking against a single self.goal is not enough."""
-        return state == self.goal
-
-    def path_cost(self, c, state1, action, state2):
-        """Return the cost of a solution path that arrives at state2 from
-        state1 via action, assuming cost c to get up to state1. If the problem
-        is such that the path doesn't matter, this function will only look at
-        state2.  If the path does matter, it will consider c and maybe state1
-        and action. The default method costs 1 for every step in the path."""
-        return c + 1
 
 class Ants():
     def __init__(self):
@@ -130,6 +98,7 @@ class Ants():
                     self.turns = int(tokens[1])
         self.map = [[LAND for col in range(self.cols)]
                     for row in range(self.rows)]
+        self.map_mat = np.zeros((self.rows, self.cols))
         self.calc_attack_range_matrix()
         self.calc_edge_of_view()
         self.turns_so_far = 0
@@ -189,12 +158,15 @@ class Ants():
         self.hill_list = {}
         for row, col in self.ant_list.keys():
             self.map[row][col] = LAND
+            self.map_mat[row, col] = M_LAND
         self.ant_list = {}
         for row, col in self.dead_list.keys():
             self.map[row][col] = LAND
+            self.map_mat[row, col] = M_LAND
         self.dead_list = defaultdict(list)
         for row, col in self.food_list:
             self.map[row][col] = LAND
+            self.map_mat[row, col] = M_LAND
         self.food_list = []
         
         # update map and create new ant and food lists
@@ -207,13 +179,17 @@ class Ants():
                     col = int(tokens[2])
                     if tokens[0] == 'w':
                         self.map[row][col] = WATER
+                        self.map_mat[row, col] = M_WATER
                     elif tokens[0] == 'f':
                         self.map[row][col] = FOOD
+                        self.map_mat[row, col] = M_FOOD
                         self.food_list.append((row, col))
                     else:
                         owner = int(tokens[3])
+                        m_ant = M_FRIEND if owner == 'a' else M_ENEMY
                         if tokens[0] == 'a':
                             self.map[row][col] = owner
+                            self.map_mat[row, col] = m_ant
                             self.ant_list[(row, col)] = owner
                         elif tokens[0] == 'd':
                             # food could spawn on a spot where an ant just died
@@ -320,14 +296,6 @@ class Ants():
         d_row = min(abs(row1 - row2), self.rows - abs(row1 - row2))
         return d_row + d_col
 
-    def distance_shortest_path(self, loc1, loc2):
-        'calculate shortest path distance using A*'
-        search_prob = AntsSearch(self, loc1, loc2)
-        def manhattan_heurisitic(node):
-            return self.distance_manhattan(node.state,loc2)
-
-        return astar_search(search_prob, manhattan_heurisitic).depth
-
 
     def direction(self, loc1, loc2):
         'determine the 1 or 2 fastest (closest) directions to reach a location'
@@ -433,39 +401,12 @@ class Ants():
             tmp += '# %s\n' % ''.join([MAP_RENDER[col] for col in row])
         return tmp
 
+    def ant_observation(self, loc):
+        side = OBSERVABILITY_SQUARE_SIZE / 2
+        rows = [i % self.rows for i in range(loc[0]-side, loc[0]+side+1)]
+        cols = [i % self.cols for i in range(loc[1] - side, loc[1] + side+1)]
+        return self.map_mat[np.ix_(rows, cols)]
+
     def __eq__(self, other):
         return self.map == other.map
 
-    # static methods are not tied to a class and don't have self passed in
-    # this is a python decorator
-    @staticmethod
-    def run(bot):
-        'parse input, update game state and call the bot classes do_turn method'
-        ants = Ants()
-        map_data = ''
-        while(True):
-            try:
-                current_line = sys.stdin.readline().rstrip('\r\n') # string new line char
-                if current_line.lower() == 'ready':
-                    ants.setup(map_data)
-                    bot.do_setup(ants)
-                    ants.finish_turn()
-                    map_data = ''
-                elif current_line.lower() == 'go':
-                    ants.update(map_data)
-                    # call the do_turn method of the class passed in
-                    bot.do_turn(ants)
-                    ants.finish_turn()
-                    map_data = ''
-                elif current_line.lower() == 'end':
-                    bot.save_q()
-                else:
-                    map_data += current_line + '\n'
-            except EOFError:
-                break
-            except KeyboardInterrupt:
-                raise
-            except:
-                # don't raise error or return so that bot attempts to stay alive
-                traceback.print_exc(file=sys.stderr)
-                sys.stderr.flush()
