@@ -1,15 +1,15 @@
 import numpy as np
-import pickle
+import cPickle as pickle
 import sys
 
-resume = False  # resume from previous checkpoint?
+resume = True  # resume from previous checkpoint?
 
 class NN:
     # hyperparameters
     H = 200  # number of hidden layer neurons
     A = 4  # size of action space
     batch_size = 10  # every how many episodes to do a param update?
-    learning_rate = 1e-4
+    learning_rate = 1e-3
     gamma = 0.99  # discount factor for reward
     decay_rate = 0.99  # decay factor for RMSProp leaky sum of grad^2
 
@@ -144,12 +144,11 @@ class NN:
                     self.grad_buffer[k] = np.zeros_like(v)  # reset batch gradient buffer
 
             # boring book-keeping
-            running_reward = self.reward_sum if self.running_reward is None else self.running_reward * 0.99 + self.reward_sum * 0.01
-            print 'resetting env. episode reward total was %f. running mean: %f' % (self.reward_sum, running_reward)
+            self.running_reward = self.reward_sum if self.running_reward is None else self.running_reward * 0.99 + self.reward_sum * 0.01
+            sys.stderr.write('resetting env. episode reward total was %f. running mean: %f\n' % (self.reward_sum, self.running_reward))
             if self.episode_number % 100 == 0:
-                sys.stderr.write("Dumping weights\n")
                 pickle.dump(self.model, open('save.p', 'wb'))
             self.reward_sum = 0
 
-        if reward != 0:  # Pong has either +1 or -1 reward exactly when game ends.
-            print ('ep %d: game finished, reward: %f' % (self.episode_number, reward)) + ('' if reward == -1 else ' !!!!!!!!')
+        # if reward != 0:  # Pong has either +1 or -1 reward exactly when game ends.
+        #     sys.stderr.write(('ep %d: game finished, reward: %f' % (self.episode_number, reward)) + ('' if reward == -1 else ' !!!!!!!!')+"\n")

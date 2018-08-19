@@ -63,9 +63,10 @@ def run(bot, training_rounds):
                 rounds += 1
                 current_line = sys.stdin.readline().rstrip('\r\n')
                 while not current_line.startswith('playerturns'):
-                    if current_line.startswith('status'):
+                    if current_line.startswith('score'):
                         line = current_line.split()
-                        score = -1 if line[1] == 'eliminated' else 1
+                        # sys.stderr.write(current_line+"\n")
+                        score = int(line[1]) - 1.1
                     current_line = sys.stdin.readline().rstrip('\r\n')
                 current_line = sys.stdin.readline().rstrip('\r\n')
                 while current_line != 'go':
@@ -73,7 +74,6 @@ def run(bot, training_rounds):
                     current_line = sys.stdin.readline().rstrip('\r\n')
                 ants.update(map_data)
                 bot.do_endgame(score)
-                sys.stderr.write(str(score)+"\n")
                 map_data = ''
             else:
                 map_data += current_line + '\n'
