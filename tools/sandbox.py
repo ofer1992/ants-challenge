@@ -608,6 +608,7 @@ class RLHouse:
         Dummy method for engine.
 
         """
+        pass
 
     def retrieve(self):
         """Copy the working directory back out of the sandbox."""

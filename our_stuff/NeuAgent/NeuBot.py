@@ -4,6 +4,7 @@ import pickle
 import copy
 from NN import NN
 
+
 id_to_action = {
     0: 'n',
     1: 'e',
@@ -14,9 +15,21 @@ id_to_action = {
 class NeuroBot:
     def __init__(self):
         self.agent = NN(OBSERVABILITY_SQUARE_SIZE**2*5)
+        self.prev_state = None
 
     def do_setup(self, ants):
-        pass
+        self.prev_state = None
+
+    def reward(self, state):
+        # food reward
+        reward = 0
+        if self.prev_state is None:
+            return reward
+
+        for f in self.prev_state.food_list:
+            if state.ant_adjacent(f):
+                reward += 1
+        return float(reward)
 
     def do_turn(self, state):
         self.agent.step(0., False) # reward for last turn. currently, reward is only victory or defeat/draw.
@@ -25,6 +38,8 @@ class NeuroBot:
             obs = state.ant_observation(ant).flatten()
             action = self.agent.get_action(obs)
             state.issue_order((ant, id_to_action[action]))
+
+        # self.prev_state = copy.deepcopy(state)
 
 
     def do_endgame(self, score):
@@ -86,6 +101,7 @@ def run(bot, training_rounds):
             # don't raise error or return so that bot attempts to stay alive
             traceback.print_exc(file=sys.stderr)
             sys.stderr.flush()
+            raise
 
 
 if __name__ == '__main__':

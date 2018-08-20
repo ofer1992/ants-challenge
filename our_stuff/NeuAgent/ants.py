@@ -394,6 +394,17 @@ class Ants():
         new_loc = self.destination_with_obstacles(loc, direction)
         self.orders[new_loc] = loc
 
+    def ant_adjacent(self, loc):
+        'true if there is friendly ant above, below, or to the side of loc'
+        row, col = loc
+        for i, j in ((-1,0), (1,0), (0,-1), (0,1)):
+            adj = self.wrap((row+i, col+j))
+            if adj in self.ant_list and self.ant_list[adj] == MY_ANT:
+                return True
+        return False
+
+
+
     def render_text_map(self):
         'return a pretty string representing the map'
         tmp = ''
