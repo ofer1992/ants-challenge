@@ -1,0 +1,64 @@
+body{
+  margin: 1% 0px 0px 5%;
+}
+@font-face {
+    font-family: "OCR A Extended";
+    src: url(fonts/OCRAEXT.ttf);
+}
+#logo{
+  font-family: "OCR A Extended";
+  font-size: 40px;
+  color: #992c07;
+  margin-bottom: 10px;
+}
+#bodyPart{
+  border-radius: 10px;
+  width: 1700px;
+  height: 800px;
+  background: #d7aa96;
+  display: flex;
+  flex-direction: row;
+  }
+  #menuWarper{
+    width: 20%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    }
+    #menu{
+        height: 80%;
+        width: 100%;
+        border-right: 1px dotted black;
+      }
+      #links{
+        display: flex;
+        flex-direction: column;
+        margin: 10% 0% 0% 20%;
+      }
+      .link{
+        margin: 5% 0% 25% 0%;
+        color: white;
+        text-decoration: none;
+        font-size: 30px;
+        font-family: 'Raleway', sans-serif;
+      }
+      a:hover{
+        text-decoration: underline;
+      }
+  #content{
+    height: 100%;
+    width: 100%;
+    }
+    .ants{
+      height: 100%;
+      width: 100%;
+      }
+      .ant{
+        height: 100%;
+        width: 1400px;
+        position: absolute;
+        background-image: url("imgs/ant.png");
+        background-repeat: repeat-x;
+        background-size: 200px;
+      }
