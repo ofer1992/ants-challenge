@@ -1,9 +1,17 @@
-from ants import *
-from our_stuff.agents import ApproximateQAgent
+from our_stuff.naive_Q.ants import *
+from our_stuff.agents import QLearningAgent
 import sys
 import pickle
-import our_stuff.util
 import copy
+
+
+id_to_action = {
+    0: 'n',
+    1: 'e',
+    2: 's',
+    3: 'w'
+}
+
 
 EATING_FOOD_REWARD = 5
 ENEMY_HILL_REWARD = 2000
@@ -12,79 +20,6 @@ VISION_REWARD = 5
 NEWLY_FOUND_FOOD_REWARD = 1
 ANT_DEAD_REWARD = -10
 ENEMY_ANT_DEAD_REWARD = 50
-
-class FeatureExtractor:
-  def getFeatures(self, state, action):
-    """
-      Returns a dict from features to counts
-      Usually, the count will just be 1.0 for
-      indicator functions.
-    """
-    our_stuff.util.raiseNotDefined()
-
-
-class IdentityExtractor(FeatureExtractor):
-  def getFeatures(self, state, action):
-    feats = our_stuff.util.Counter()
-    feats[(state,action)] = 1.0
-    return feats
-
-
-class BasicExtractor(FeatureExtractor):
-    def getFeatures(self, state, action):
-        feats = our_stuff.util.Counter()
-        ants = state[0]
-        ant_loc = state[1]
-
-        # Possible solution to dead state
-        if ant_loc is None:
-            feats['dead'] = 1
-            return feats
-
-        new_ant_loc = ants.destination_with_obstacles(ant_loc, action)
-        map_size = float(ants.cols * ants.rows)
-
-        feats["bias"] = 1.0
-
-        # feats["obstacle"] = 0 if ants.passable(new_ant_loc) else 1
-        # if feats["obstacle"] == 1:
-        #     sys.stderr.write("obstacles was 1\n")
-        # Food
-        if ants.food():
-            food_distances = [ants.distance_shortest_path(new_ant_loc, f) for f in ants.food()]
-            food_d = min(food_distances)
-            food_loc = ants.food()[food_distances.index(food_d)]
-            feats["food"] = food_d / map_size
-            how_many_will_be_eaten = [d for d in food_distances if d == 1]
-            feats["will-eat-food"] = len(how_many_will_be_eaten)
-            ants_distance_from_food = [ants.distance_manhattan(ant, food_loc) for ant in ants.my_ants()]
-            # feats["there-is-a-closer-ant"] = 1 if min(ants_distance_from_food) < ants.distance_manhattan(new_ant_loc, food_loc) else 0
-
-        # # Ants in attack range
-        # friendly, unfriendly, dead = ants.attack_range_of_loc(new_ant_loc, state)
-        # ants_in_range = friendly + unfriendly
-        # feats["#-of-enemy-ants-in-range"] = len(unfriendly) / float(len(ants_in_range) + 1)
-        # feats["#-of-friendly-ants-in-range"] = len(friendly) / float(len(ants_in_range) + 1)
-        #
-
-        # Enemy hills
-        if ants.enemy_hills():
-            enemy_hill_d = min(ants.distance_shortest_path(new_ant_loc, h[0]) for h in ants.enemy_hills()) / map_size
-            feats["enemy-hill"] = enemy_hill_d
-            feats["will-step-on-enemy-hill"] = 1 if enemy_hill_d == 0 else 0
-
-        # Stepping on other ants' new location
-        # if new_ant_loc in ants.orders.values():
-        #     feats["will-collide-with-ant"] = 1
-
-        # Exploration
-        # revealed = []
-        # for (d_row, d_col) in state.edge_of_view:
-
-
-
-        feats.divideAll(10.0)
-        return feats
 
 
 def get_reward(prev_ants, prev_ant_loc, ants, ant_loc):
@@ -120,34 +55,21 @@ def get_reward(prev_ants, prev_ant_loc, ants, ant_loc):
 
     return reward
 
-def legal_actions(state):
-    actions = [NOOP]
-    ants = state[0]
-    ant_loc = state[1]
 
-    # This happens when ant has died. The next state is (ants, None)
-    if ant_loc is None:
-        return actions
-    for d in AIM:
-        new_loc = ants.destination(ant_loc, d)
-        if ants.unoccupied_including_orders(new_loc):
-            actions.append(d)
-    return actions
-
-class ApproxQBot:
+class NaiveBot:
     def __init__(self, train, load_from_file):
-        self.agent = ApproximateQAgent(actionFn=legal_actions, extractor=BasicExtractor, epsilon=0.1, alpha=0.2, gamma=0.8)
+        self.agent = QLearningAgent(Ants.action_func, 1, 0.9, 0.2, 0.99)
         if load_from_file:
-            sys.stderr.write("Loaded weights from file\n")
-            with open("Weights.txt",   'rb') as f:
-                Weights = pickle.load(f)
-            self.agent.setW(Weights)
-        self.prev_state = None
-        self.train = train
+            sys.stderr.write("Loaded Q from file\n")
+            with open("Q.txt",   'rb') as f:
+                Q = pickle.load(f)
+            self.agent.setQ(Q)
+        self.prev_state, self.last_action = None, None
         self.accumulated_rewards = 0
+        self.train = train
 
     def do_setup(self, ants):
-        self.prev_state = None
+        self.prev_state, self.last_action = None, None
         self.accumulated_rewards = 0
 
     def do_turn(self, state):
@@ -155,19 +77,23 @@ class ApproxQBot:
         # sys.stderr.write(str(state.my_ants())+"\n")
         if self.train and self.prev_state:
             for ant in self.prev_state.my_ants():
+                prev_obs = self.prev_state.ant_observation(ant)
                 action = self.prev_state.orders2[ant]
                 curr_loc = state.destination_with_obstacles(ant, action)
                 if curr_loc not in state.ant_list or state.ant_list[curr_loc] !=MY_ANT:
-                    curr_loc = None
+                    curr_obs = None
+                else:
+                    curr_obs = state.ant_observation(curr_loc)
                 reward = get_reward(self.prev_state, ant, state, curr_loc)
                 self.accumulated_rewards += reward
-                self.agent.update((self.prev_state, ant), action, (state, curr_loc), reward)
+                self.agent.update(prev_obs, action, curr_obs, reward)
 
         action_function = self.agent.getAction if self.train else\
             self.agent.getPolicy
         for ant in state.my_ants():
-            action = action_function((state, ant))
-            state.remember_order(ant, action)
+            obs = state.ant_observation(ant)
+            action = action_function(obs)
+            # state.remember_order(ant, action)
             state.issue_order((ant, action))
 
         # saving state and actions for next turn
@@ -175,28 +101,31 @@ class ApproxQBot:
         # sys.stderr.write(str(state.orders2)+"\n")
         # sys.stderr.write(str(state.my_ants())+"\n")
 
+
     def do_endgame(self, state):
         """
         Called once in end of game to update Q-weights.
         """
-        # sys.stderr.write("Weights:"+str(self.agent.weights)+"\n")
         sys.stderr.write("Total reward: "+str(self.accumulated_rewards)+"\n")
         sys.stderr.write("Turns: "+str(state.turns_so_far)+"\n")
         if self.train and self.prev_state:
             for ant in self.prev_state.my_ants():
+                prev_obs = self.prev_state.ant_observation(ant)
                 action = self.prev_state.orders2[ant]
                 curr_loc = state.destination_with_obstacles(ant, action)
                 if curr_loc not in state.ant_list or state.ant_list[curr_loc] !=MY_ANT:
-                    curr_loc = None
+                    curr_obs = None
+                else:
+                    curr_obs = state.ant_observation(curr_loc)
                 reward = get_reward(self.prev_state, ant, state, curr_loc)
-                self.agent.update((self.prev_state, ant), action, (state, curr_loc), reward)
+                self.accumulated_rewards += reward
+                self.agent.update(prev_obs, action, curr_obs, reward)
 
 
-    def save_weights(self):
-        sys.stderr.write("Weights:"+str(self.agent.weights)+"\n")
+    def save_q(self):
         if self.train:
-            with open("Weights.txt", 'wb') as f:
-                pickle.dump(self.agent.weights, f)
+            with open("Q.txt", 'wb') as f:
+                pickle.dump(self.agent.Q, f)
 
 def run(bot, training_rounds):
     'parse input, update game state and call the bot classes do_turn method'
@@ -224,24 +153,20 @@ def run(bot, training_rounds):
 
             # support for multi-game input
             elif current_line.lower() == 'end':
-                sys.stderr.write("finished game\n")
+                score = 0
                 rounds += 1
                 if rounds == training_rounds:
-                    sys.stderr.write("training over. dumping weights\n")
-                    bot.save_weights()
-                    sys.stderr.write("finished (steamy) dump!\n")
+                    sys.stderr.write("training over. dumping Q\n")
+                    bot.save_q()
                     bot.train = False
                 current_line = sys.stdin.readline().rstrip('\r\n')
                 while not current_line.startswith('playerturns'):
                     # sys.stderr.write(current_line+" inside loop 1\n")
                     current_line = sys.stdin.readline().rstrip('\r\n')
-                # sys.stderr.write(current_line + " after loop 1\n")
                 current_line = sys.stdin.readline().rstrip('\r\n')
                 while current_line != 'go':
-                    # sys.stderr.write(current_line+" inside loop 2\n")
                     map_data += current_line + '\n'
                     current_line = sys.stdin.readline().rstrip('\r\n')
-                # sys.stderr.write(current_line + " after loop 2\n")
                 ants.update(map_data)
                 bot.do_endgame(ants)
                 # bot.agent.epsilon *= 0.99
@@ -258,7 +183,6 @@ def run(bot, training_rounds):
             traceback.print_exc(file=sys.stderr)
             sys.stderr.flush()
 
-
 if __name__ == '__main__':
     # psyco will speed up python a little, but is not needed
     try:
@@ -273,7 +197,7 @@ if __name__ == '__main__':
         # this is not needed, in which case you will need to write your own
         # parsing function and your own game state class
         training_rounds = int(sys.argv[1])
-        b = ApproxQBot(training_rounds > 0, training_rounds == 0)
+        b = NaiveBot(training_rounds > 0, training_rounds == 0)
         run(b, training_rounds)
 
     except KeyboardInterrupt:
