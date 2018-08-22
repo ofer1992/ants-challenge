@@ -2,7 +2,7 @@ import numpy as np
 import cPickle as pickle
 import sys
 
-resume = False  # resume from previous checkpoint?
+resume = True  # resume from previous checkpoint?
 
 class NN:
     # hyperparameters
@@ -97,7 +97,9 @@ class NN:
 
         # forward the policy network and sample an action from the returned probability
         prob_vec, h = self.policy_forward(x)
+        sys.stderr.write(str(prob_vec)+"\n")
         action = np.random.choice(range(4), p=prob_vec)
+        # best_action = np.argmax(prob_vec)
 
         # record various intermediates (needed later for backprop)
         self.xs.append(x)  # observation

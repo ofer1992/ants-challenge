@@ -186,7 +186,7 @@ class Ants():
                         self.food_list.append((row, col))
                     else:
                         owner = int(tokens[3])
-                        m_ant = M_FRIEND if owner == 'a' else M_ENEMY
+                        m_ant = M_FRIEND if owner == MY_ANT else M_ENEMY
                         if tokens[0] == 'a':
                             self.map[row][col] = owner
                             self.map_mat[row, col] = m_ant

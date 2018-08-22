@@ -32,14 +32,14 @@ class NeuroBot:
         return float(reward)
 
     def do_turn(self, state):
-        self.agent.step(0., False) # reward for last turn. currently, reward is only victory or defeat/draw.
+        self.agent.step(self.reward(state), False) # reward for last turn. currently, reward is only victory or defeat/draw.
 
         for ant in state.my_ants():
             obs = state.ant_observation(ant).flatten()
             action = self.agent.get_action(obs)
             state.issue_order((ant, id_to_action[action]))
 
-        # self.prev_state = copy.deepcopy(state)
+        self.prev_state = copy.deepcopy(state)
 
 
     def do_endgame(self, score):
