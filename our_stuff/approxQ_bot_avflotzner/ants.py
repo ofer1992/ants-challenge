@@ -38,6 +38,8 @@ BEHIND = {'n': 's',
           'e': 'w',
           'w': 'e'}
 
+
+
 class Ants():
     def __init__(self):
         self.cols = None
@@ -55,6 +57,7 @@ class Ants():
         self.attackradius2 = 0
         self.spawnradius2 = 0
         self.turns = 0
+        self.turn = 0
         self.orders = {}
         self.indices_in_attack_range = set()
         self.edge_of_view = []
@@ -180,6 +183,25 @@ class Ants():
                         elif tokens[0] == 'h':
                             owner = int(tokens[3])
                             self.hill_list[(row, col)] = owner
+
+        # Print information regarding the game
+        # self.turn += 1
+        # sys.stderr.write("turn: " + str(self.turn) + '\n')
+        # for ant in self.ant_list:
+        #     sys.stderr.write(str(self.ant_list[ant])+'\n')
+        # sys.stderr.write(",number of ants: " + str(len([ant for ant in self.ant_list if self.ant_list[ant] == 0])) + '\n')
+        # sys.stderr.write(",number of ants2: " + str(len([ant for ant in self.ant_list if self.ant_list[ant] == 1])) + '\n')
+        # sys.stderr.write(",number of ants3: " + str(len([ant for ant in self.ant_list if self.ant_list[ant] == 2])) + '\n')
+        # sys.stderr.write(",number of ants4: " + str(len([ant for ant in self.ant_list if self.ant_list[ant] == 3])) + '\n')
+        # sys.stderr.write(",number of enemy ants: " + str(len(state.enemy_ants())) + '\n')
+        #
+        # # with open('open_field_food_gathering.csv', 'a') as csvfile:
+        # #     writer = csv.writer(csvfile, quotechar='|')
+        # #     writer.writerow(str(turn_number))
+        #
+        # with open('open_field_food_gathering.csv', 'a') as file:
+        #     file.write(str(turn_number) + ",")
+        #     file.write(str(len(state.my_ants())) + "," + str(len(state.enemy_ants())) + '\n')
                         
     def time_remaining(self):
         return self.turntime - int(1000 * (time.clock() - self.turn_start_time))
@@ -324,6 +346,27 @@ class Ants():
                     self.vision[a_row+v_row][a_col+v_col] = True
         row, col = loc
         return self.vision[row][col]
+
+    def visible_from(self, loc):
+        ' determine which squares are visible to the given player '
+        if not hasattr(self, 'vision_offsets_2'): # not 100% sure about what this line does
+            # precalculate squares around an ant to set as visible
+            self.vision_offsets_2 = []
+            mx = int(sqrt(self.viewradius2))
+            for d_row in range(-mx,mx+1):
+                for d_col in range(-mx,mx+1):
+                    d = d_row**2 + d_col**2
+                    if d <= self.viewradius2:
+                        self.vision_offsets_2.append((
+                            d_row%self.rows-self.rows,
+                            d_col%self.cols-self.cols
+                        ))
+        # create a list of all tiles seen by the ant
+        vision = []
+        a_row, a_col = loc
+        for v_row, v_col in self.vision_offsets_2:
+            vision.append((a_row + v_row, a_col + v_col))
+        return vision
 
     def num_of_revealed_on_edge(self, ant_loc, tile):
         'returns a list of locations on the rim viewradius of and ant at loc'

@@ -5,12 +5,15 @@ import pickle
 import our_stuff.util
 import copy
 import math
+import csv
 
 EATING_FOOD_REWARD = 5
-ENEMY_HILL_REWARD = 20
-OWN_HILL_REWARD = -5
-VISION_REWARD = 5
-NEWLY_FOUND_FOOD_REWARD = 1
+EXPLORATION_REWARD = 1
+EXPLORE = 50
+#ENEMY_HILL_REWARD = 20
+# OWN_HILL_REWARD = -5
+
+global turn_number
 
 class FeatureExtractor:
   def getFeatures(self, state, action):
@@ -31,6 +34,7 @@ class IdentityExtractor(FeatureExtractor):
 
 class BasicExtractor(FeatureExtractor):
     def getFeatures(self, state, action):
+        reward = 0
         feats = our_stuff.util.Counter()
         ants = state[0]
         ant_id = state[1]
@@ -52,12 +56,24 @@ class BasicExtractor(FeatureExtractor):
             ants_distance_from_food = [ants.distance(ant, food_loc) for ant in ants.my_ants()]
             # feats["there-is-a-closer-ant"] = 1 if min(ants_distance_from_food) < ants.distance(new_ant_loc, food_loc) else 0
 
-        # Percentage of the map we see
-        ants.visible([0, 0])  # Triggers updating ants.vision
-        vision = sum(row.count(True) for row in ants.vision)
-        feats["map-vision"] = vision / map_size
-        # sys.stderr.write("vision: " + str(vision / map_size) + '\n')
-        # sys.stderr.write("ratio map feature value is: " + str(feats["ratio-of-map"]) + '\n')
+
+
+        #
+        # # Percentage of the map we see
+        # ants.visible([0, 0])  # Triggers updating ants.vision
+        # vision = sum(row.count(True) for row in ants.vision)
+        # feats["vision"] = 10 * vision / map_size
+        # sys.stderr.write("map-vision feature value is: " + str(feats["vision"]) + '\n')
+        # # sys.stderr.write("vision: " + str(vision / map_size) + '\n')
+
+
+        # # sys.stderr.write("action: " + str(action) + '\n')
+        # if str(action) == 'n':
+        #     # sys.stderr.write("NORTH\n")
+        #     feats["north"] = 1
+        # else:
+        #     # sys.stderr.write("NOTNORTH\n")
+        #     feats["north"] = 0
 
         # # Ants in attack range
         # friendly, unfriendly, dead = ants.attack_range_of_loc(new_ant_loc)
@@ -77,7 +93,6 @@ class BasicExtractor(FeatureExtractor):
         feats.divideAll(10.0)
         return feats
 
-#remove this comment
 def get_reward(prev_ants, prev_actions, ants, ant_id):
     reward = 0
     prev_ant_loc = prev_ants.my_ants()[ant_id]
@@ -91,6 +106,43 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
         food_d = min(ants.distance(new_ant_loc, f) for f in prev_ants.food())
         if food_d == 1:
             reward += EATING_FOOD_REWARD
+
+    # # Eating food with reward the same as feature
+    # if ants.food():
+    #     food_distances = [ants.distance(new_ant_loc, f) for f in ants.food()]
+    #     food_d = min(food_distances)
+    #     reward = 1 - (1 / (1 + math.exp(-0.6 * food_d + 3)))
+
+    # # Percentage of the map we see
+    # ants.visible([0, 0])  # Triggers updating ants.vision
+    # vision = sum(row.count(True) for row in ants.vision)
+    # reward += EXPLORE * (vision / float(ants.cols * ants.rows))
+    # sys.stderr.write("reward: " + str(reward) + '\n')
+
+    # # number of newly discovered spots in the map
+    # prev_ants.visible((0, 0))  # Triggering update of ants.vision
+    # ants.visible((0, 0))
+    # discovered_tiles = 0
+    # for row, col in ants.visible_from(new_ant_loc):
+    #     if not prev_ants.vision[row][col]:
+    #         discovered_tiles += 1
+    # for row, col in prev_ants.visible_from(prev_ant_loc):
+    #     if not ants.vision[row][col]:
+    #         discovered_tiles -= 1
+    # # # Checking that this reward is working properly
+    # if discovered_tiles != 0:
+    #     sys.stderr.write(str(discovered_tiles) + '\n')
+    # reward += discovered_tiles * EXPLORATION_REWARD
+
+    # reward += len(ants.food())
+
+    # # hahaha encouraging ants to go down
+    # reward = 0
+    # row, col = prev_ant_loc
+    # new_row, new_col = new_ant_loc
+    # if col == new_col and row == new_row - 1:
+    #     reward += 1
+
     #
     # # stepping on enemy hill
     # if new_ant_loc in prev_ants.enemy_hills():
@@ -100,12 +152,18 @@ def get_reward(prev_ants, prev_actions, ants, ant_id):
     # if new_ant_loc in ants.my_hills():
     #     reward += OWN_HILL_REWARD
 
+
+
     # # number of newly discovered foods
+    # new_food = 0
+    # for food in ants.food():
+    #     if food not in prev_ants.food():
+    #         new_food += 1
+    # sys.stderr.write("found new food: " + str(new_food) + '\n')
+    # reward += new_food * NEWLY_FOUND_FOOD_REWARD
+
     # new_food = sum([f for food in ants.food() if f not prev_ants.food])
     # # sys.stderr.write(str(new_food) + '\n')
-    # reward += new_food * NEWLY_FOUND_FOOD_REWARD
-    # if new_food > 0:
-    #     sys.stderr.write("found new food reward: " + str(reward) + '\n')
 
     # # killing an enemy
     # dead_enemies = prev_ants.attack_range_of_loc(prev_ant_loc)[2]
@@ -151,9 +209,31 @@ class ApproxQBot:
         self.train = train
 
     def do_setup(self, ants):
+        global turn_number
+        turn_number = 0
         self.prev_state, self.prev_actions = None, None
 
+
     def do_turn(self, state):
+        # global total_food
+        # global turn_number
+        # if turn_number == 0:
+        #     total_food = len(state.food())
+        # turn_number += 1
+        # sys.stderr.write("turn: " + str(turn_number) + '\n')
+        # sys.stderr.write(",number of ants: " + str(len(state.my_ants())) + '\n')
+        # sys.stderr.write(",number of enemy ants: " + str(len(state.enemy_ants())) + '\n')
+        #
+        # # with open('open_field_food_gathering.csv', 'a') as csvfile:
+        # #     writer = csv.writer(csvfile, quotechar='|')
+        # #     writer.writerow(str(turn_number))
+        #
+        # with open('open_field_food_gathering.csv', 'a') as file:
+        #     file.write(str(turn_number) + ",")
+        #     file.write(str(len(state.my_ants())) + "," + str(len(state.enemy_ants())) + '\n')
+
+
+
 
         # Calculate rewards and update Q-Function weights per ant.
         # sys.stderr.write('before reward\n')

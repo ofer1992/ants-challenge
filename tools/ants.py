@@ -1455,6 +1455,17 @@ class Ants(Game):
         self.orders = [[] for _ in range(self.num_players)]
         self.hill_kill = False # used to stall cutoff counter
 
+        print(self.turn)
+        with open('obstacles_food_gathering5.csv', 'a') as file:
+            file.write(str(self.turn))
+            for player in range(self.num_players):
+                file.write(',' + str(len([ant for ant in self.current_ants if self.current_ants[ant].owner == player])))
+            file.write('\n')
+            # file.write(str(len(state.my_ants())) + "," + str(len(state.enemy_ants())) + '\n')
+
+
+
+
     def finish_turn(self):
         """ Called by engine at the end of the turn """
         self.do_orders()
