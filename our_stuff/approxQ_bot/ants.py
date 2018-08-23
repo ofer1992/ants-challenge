@@ -5,6 +5,7 @@ import random
 import time
 from collections import defaultdict
 from math import sqrt
+from search import Problem, astar_search
 
 MY_ANT = 0
 ANTS = 0
@@ -18,6 +19,8 @@ HILL_ANT = string = 'ABCDEFGHIJ'
 PLAYER_HILL = string = '0123456789'
 MAP_OBJECT = '?%*.!'
 MAP_RENDER = PLAYER_ANT + HILL_ANT + PLAYER_HILL + MAP_OBJECT
+NOOP = "No-Op"
+
 
 AIM = {'n': (-1, 0),
        'e': (0, 1),
@@ -36,6 +39,47 @@ BEHIND = {'n': 's',
           'e': 'w',
           'w': 'e'}
 
+class AntsSearch(Problem):
+
+    def __init__(self, ants, start, goal):
+        Problem.__init__(self, start, goal)
+        self.ants = ants
+        self.start = start
+        self.goal = goal
+
+    def actions(self, state):
+        """Return the actions that can be executed in the given
+        state. The result would typically be a list, but if there are
+        many actions, consider yielding them one at a time in an
+        iterator, rather than building them all at once."""
+        actions = []
+        for a in AIM:
+            new_loc = self.ants.destination(state, a)
+            if self.ants.passable(new_loc):
+                actions.append(a)
+        return actions
+
+    def result(self, state, action):
+        """Return the state that results from executing the given
+        action in the given state. The action must be one of
+        self.actions(state)."""
+        return self.ants.destination(state, action)
+
+    def goal_test(self, state):
+        """Return True if the state is a goal. The default method compares the
+        state to self.goal or checks for state in self.goal if it is a
+        list, as specified in the constructor. Override this method if
+        checking against a single self.goal is not enough."""
+        return state == self.goal
+
+    def path_cost(self, c, state1, action, state2):
+        """Return the cost of a solution path that arrives at state2 from
+        state1 via action, assuming cost c to get up to state1. If the problem
+        is such that the path doesn't matter, this function will only look at
+        state2.  If the path does matter, it will consider c and maybe state1
+        and action. The default method costs 1 for every step in the path."""
+        return c + 1
+
 class Ants():
     def __init__(self):
         self.cols = None
@@ -53,8 +97,11 @@ class Ants():
         self.attackradius2 = 0
         self.spawnradius2 = 0
         self.turns = 0
+        self.turns_so_far = 0
         self.orders = {}
+        self.orders2 = {}
         self.indices_in_attack_range = set()
+        self.edge_of_view = []
 
     def setup(self, data):
         'parse initial input and setup starting game state'
@@ -84,14 +131,46 @@ class Ants():
         self.map = [[LAND for col in range(self.cols)]
                     for row in range(self.rows)]
         self.calc_attack_range_matrix()
+        self.calc_edge_of_view()
+        self.turns_so_far = 0
+
+    def neighbourhood_offsets(self, max_dist, full=True):
+        """ Return a list of squares within a given distance of loc
+
+            Loc is not included in the list
+            For all squares returned: 0 < distance(loc,square) <= max_dist
+
+            Offsets are calculated so that:
+              -height <= row+offset_row < height (and similarly for col)
+              negative indicies on self.map wrap thanks to python
+        """
+        offsets = []
+        mx = int(sqrt(max_dist))
+        for d_row in range(-mx,mx+1):
+            for d_col in range(-mx,mx+1):
+                d = d_row**2 + d_col**2
+                if full:
+                    if 0 < d <= max_dist:
+                        offsets.append((
+                            d_row%self.rows-self.rows,
+                            d_col%self.cols-self.cols
+                        ))
+                else:
+                    if max_dist -1 < d <= max_dist:
+                        offsets.append((
+                            d_row%self.rows-self.rows,
+                            d_col%self.cols-self.cols
+                        ))
+        return offsets
+
+    def calc_edge_of_view(self):
+        'precalculate edge of view circle'
+        self.edge_of_view = self.neighbourhood_offsets(self.viewradius2, False)
+
 
     def calc_attack_range_matrix(self):
         'precalculate possible relative indices in attack range'
-        attack_range = self.attackradius2**0.5
-        for i in range(int(-attack_range), int(attack_range)):
-            for j in range(int(-attack_range), int(attack_range)):
-                if i**2 + j**2 < self.attackradius2:
-                    self.indices_in_attack_range.add((i,j))
+        self.indices_in_attack_range = self.neighbourhood_offsets(self.attackradius2)
 
     def update(self, data):
         'parse engine input and update the game state'
@@ -148,16 +227,19 @@ class Ants():
     def issue_order(self, order):
         'issue an order by writing the proper ant location and direction'
         (row, col), direction = order
-        self.orders[(row, col)] = self.destination_with_obstacles((row, col), direction)
-        sys.stdout.write('o %s %s %s\n' % (row, col, direction))
-        sys.stdout.flush()
+        self.orders2[(row, col)] = direction
+        if direction != NOOP:
+            sys.stdout.write('o %s %s %s\n' % (row, col, direction))
+            sys.stdout.flush()
         
     def finish_turn(self):
         'finish the turn by writing the go line'
         self.orders = {}
+        self.orders2 = {}
+        self.turns_so_far += 1
         sys.stdout.write('go\n')
         sys.stdout.flush()
-    
+
     def my_hills(self):
         return [loc for loc, owner in self.hill_list.items()
                     if owner == MY_ANT]
@@ -191,15 +273,32 @@ class Ants():
         row, col = loc
         return self.map[row][col] in (LAND, DEAD)
 
+    def unoccupied_including_orders(self, loc):
+        'similar to unoccupied, except taking into consideration other ants order'
+        row, col = loc
+        if not self.passable((row, col)):
+            return False
+        if self.map[row][col] == FOOD:
+            return False
+        if self.map[row][col] == MY_ANT:
+            return False
+        if (row, col) in self.orders:
+            return False
+        return True
+
+
     def destination(self, loc, direction):
         'calculate a new location given the direction and wrap correctly'
+        if direction is NOOP:
+            return loc
         row, col = loc
         d_row, d_col = AIM[direction]
-        return ((row + d_row) % self.rows, (col + d_col) % self.cols)
+        return (row + d_row) % self.rows, (col + d_col) % self.cols
 
     def wrap(self, loc):
+        'wrap coordinates'
         row, col = loc
-        return (row % self.rows, col % self.cols)
+        return row % self.rows, col % self.cols
 
     def destination_with_obstacles(self, loc, direction):
         'add a test for passability of new location and return old location if not'
@@ -208,13 +307,22 @@ class Ants():
             return loc
         return new_loc
 
-    def distance(self, loc1, loc2):
+    def distance_manhattan(self, loc1, loc2):
         'calculate the closest distance between to locations'
         row1, col1 = loc1
         row2, col2 = loc2
         d_col = min(abs(col1 - col2), self.cols - abs(col1 - col2))
         d_row = min(abs(row1 - row2), self.rows - abs(row1 - row2))
         return d_row + d_col
+
+    def distance_shortest_path(self, loc1, loc2):
+        'calculate shortest path distance using A*'
+        search_prob = AntsSearch(self, loc1, loc2)
+        def manhattan_heurisitic(node):
+            return self.distance_manhattan(node.state,loc2)
+
+        return astar_search(search_prob, manhattan_heurisitic).depth
+
 
     def direction(self, loc1, loc2):
         'determine the 1 or 2 fastest (closest) directions to reach a location'
@@ -271,23 +379,28 @@ class Ants():
         row, col = loc
         return self.vision[row][col]
 
-    def attack_range_of_loc(self, loc):
+    def attack_range_of_loc(self, loc, prev_ants):
         'return list of allies, enemies and dead enemies'
         row, col = loc
         friendly_ants = []
         live_enemy_ants = []
         dead_enemy_ants = []
         for (i,j) in self.indices_in_attack_range:
-            tile = self.wrap((row + i, col + j))
-            if tile in self.my_ants():
-                friendly_ants.append(tile)
-            elif tile in self.enemy_ants():
-                live_enemy_ants.append(tile)
-            elif tile in self.dead_list:
-                dead = set(self.dead_list)
-                if dead and dead != {0}:
-                    dead_enemy_ants.append(tile)
+            tile = self.map[row + i][col + j]
+            tile_loc = self.wrap((row+i, col+j))
+            if tile == 0:
+                friendly_ants.append(tile_loc)
+            elif tile > 0:
+                live_enemy_ants.append(tile_loc)
+            elif tile == DEAD and 0 not in self.dead_list[tile_loc]:
+                dead_enemy_ants.append(tile_loc)
+
         return friendly_ants, live_enemy_ants, dead_enemy_ants
+
+    def remember_order(self, loc, direction):
+        'add order to order dict'
+        new_loc = self.destination_with_obstacles(loc, direction)
+        self.orders[new_loc] = loc
 
     def render_text_map(self):
         'return a pretty string representing the map'
@@ -298,37 +411,3 @@ class Ants():
 
     def __eq__(self, other):
         return self.map == other.map
-
-    # static methods are not tied to a class and don't have self passed in
-    # this is a python decorator
-    @staticmethod
-    def run(bot):
-        'parse input, update game state and call the bot classes do_turn method'
-        ants = Ants()
-        map_data = ''
-        while(True):
-            try:
-                current_line = sys.stdin.readline().rstrip('\r\n') # string new line char
-                if current_line.lower() == 'ready':
-                    ants.setup(map_data)
-                    bot.do_setup(ants)
-                    ants.finish_turn()
-                    map_data = ''
-                elif current_line.lower() == 'go':
-                    ants.update(map_data)
-                    # call the do_turn method of the class passed in
-                    bot.do_turn(ants)
-                    ants.finish_turn()
-                    map_data = ''
-                elif current_line.lower() == 'end':
-                    bot.save_q()
-                else:
-                    map_data += current_line + '\n'
-            except EOFError:
-                break
-            except KeyboardInterrupt:
-                raise
-            except:
-                # don't raise error or return so that bot attempts to stay alive
-                traceback.print_exc(file=sys.stderr)
-                sys.stderr.flush()
