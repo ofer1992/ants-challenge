@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from ants import *
-from agents import QLearningAgent
+from our_stuff.ants import *
+from our_stuff.agents import QLearningAgent
 import sys
 import pickle
 
@@ -48,25 +48,6 @@ def reward2(ants):
         sys.stderr.write("WON!\n")
         return 500
     return 0
-
-def features(ants):
-    def min_distance(l1, l2):
-        def min_d(loc, l):
-            return min(ants.distance(loc, loc1) for loc1 in l)
-
-        return min(min_d(loc, l2) for loc in l1)
-    features = []
-    features.append(len(ants.my_ants()))  # num of ants
-    features.append(min_distance(ants.my_ants(), ants.food()))  # closest food
-    features.append(len(ants.enemy_hills()))  # num of visible enemy hills
-    features.append(len(ants.enemy_ants()))  # num of visible enemy ants
-    features.append(0)  # num of ants to die
-    features.append(0)  # num of ants we will kill
-    features.append(min_distance(ants.enemy_ants(), ants.my_hills()))  # min dist of enemy ant to our hills
-    # features.append(float(len(ants.visible())))  # % of map visible
-    features.append(min_distance(ants.my_ants(), ants.my_hills()))  # min dist of our ants from our hills
-
-    return features
 
 class MyBot:
     def __init__(self, train, load_from_file):

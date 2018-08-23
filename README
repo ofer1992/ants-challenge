@@ -1,0 +1,10 @@
+To run the project, execute
+"python run_project.py [arg]""
+
+arguments:
+train - train vs HunterBot for a 100 rounds
+fight - 1v1 battle with HunterBot
+food - food collection contest
+maze - maze food collection contest
+
+Make sure you are using python 2 (otherwise it will fail)

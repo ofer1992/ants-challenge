@@ -170,11 +170,6 @@ class Ants():
 
     def calc_attack_range_matrix(self):
         'precalculate possible relative indices in attack range'
-        # attack_range = self.attackradius2**0.5
-        # for i in range(int(-attack_range), int(attack_range)):
-        #     for j in range(int(-attack_range), int(attack_range)):
-        #         if i**2 + j**2 < self.attackradius2:
-        #             self.indices_in_attack_range.add((i,j))
         self.indices_in_attack_range = self.neighbourhood_offsets(self.attackradius2)
 
     def update(self, data):
@@ -294,11 +289,11 @@ class Ants():
 
     def destination(self, loc, direction):
         'calculate a new location given the direction and wrap correctly'
-        if direction is NOOP: # TODO: for now None signifies no action. Open for reconsideration.
+        if direction is NOOP:
             return loc
         row, col = loc
         d_row, d_col = AIM[direction]
-        return ((row + d_row) % self.rows, (col + d_col) % self.cols)
+        return (row + d_row) % self.rows, (col + d_col) % self.cols
 
     def wrap(self, loc):
         'wrap coordinates'
@@ -308,7 +303,7 @@ class Ants():
     def destination_with_obstacles(self, loc, direction):
         'add a test for passability of new location and return old location if not'
         new_loc = self.destination(loc, direction)
-        if not self.passable(new_loc): # TODO: Add test for food?
+        if not self.passable(new_loc):
             return loc
         return new_loc
 
@@ -384,15 +379,6 @@ class Ants():
         row, col = loc
         return self.vision[row][col]
 
-    def num_of_revealed_on_edge(self, ant_loc, tile):
-        'returns a list of locations on the rim viewradius of and ant at loc'
-        row, col = ant_loc
-        for (d_row, d_col) in self.edge_of_view:
-            edge_tile = self.wrap((row + d_row, col + d_col))
-            # if :
-            #     return True
-        return False
-
     def attack_range_of_loc(self, loc, prev_ants):
         'return list of allies, enemies and dead enemies'
         row, col = loc
@@ -400,16 +386,6 @@ class Ants():
         live_enemy_ants = []
         dead_enemy_ants = []
         for (i,j) in self.indices_in_attack_range:
-            # tile = self.wrap((row + i, col + j))
-            # if tile in self.my_ants():
-            #     friendly_ants.append(tile)
-            # elif tile in self.enemy_ants():
-            #     live_enemy_ants.append(tile)
-            # elif tile in self.dead_list:
-            #     dead = set(self.dead_list)
-            #     if dead and dead != {0}:
-            #         dead_enemy_ants.append(tile)
-
             tile = self.map[row + i][col + j]
             tile_loc = self.wrap((row+i, col+j))
             if tile == 0:
@@ -435,37 +411,3 @@ class Ants():
 
     def __eq__(self, other):
         return self.map == other.map
-
-    # static methods are not tied to a class and don't have self passed in
-    # this is a python decorator
-    @staticmethod
-    def run(bot):
-        'parse input, update game state and call the bot classes do_turn method'
-        ants = Ants()
-        map_data = ''
-        while(True):
-            try:
-                current_line = sys.stdin.readline().rstrip('\r\n') # string new line char
-                if current_line.lower() == 'ready':
-                    ants.setup(map_data)
-                    bot.do_setup(ants)
-                    ants.finish_turn()
-                    map_data = ''
-                elif current_line.lower() == 'go':
-                    ants.update(map_data)
-                    # call the do_turn method of the class passed in
-                    bot.do_turn(ants)
-                    ants.finish_turn()
-                    map_data = ''
-                elif current_line.lower() == 'end':
-                    bot.save_q()
-                else:
-                    map_data += current_line + '\n'
-            except EOFError:
-                break
-            except KeyboardInterrupt:
-                raise
-            except:
-                # don't raise error or return so that bot attempts to stay alive
-                traceback.print_exc(file=sys.stderr)
-                sys.stderr.flush()
