@@ -1,4 +1,4 @@
-To run the project, execute
+To execute the tests we presented on the report, run
 "python run_project.py [arg]""
 
 arguments:
@@ -6,5 +6,22 @@ train - train vs HunterBot for a 100 rounds
 fight - 1v1 battle with HunterBot
 food - food collection contest
 maze - maze food collection contest
+ffa - 4 bots, free for all match
 
 Make sure you are using python 2 (otherwise it will fail)
+
+file structure:
+
+.
+├── our_stuff               # most of our code is located here
+│   ├── approxQ_bot         # approximate Q agent
+│   ├── maps                # our maps
+│   └── NeuAgent            # deep rl agent
+├── tools                   # game files
+│   ├── ...
+│   ├── engine_rl.py        # modified engine.py for reinforcement learning
+│   └── playgame_rl.py      # modified playgame.py for reinforcement learning
+├── README
+└── run_project.py
+
+

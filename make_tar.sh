@@ -1,0 +1,1 @@
+cat tar_files | tr '\n' ' ' | xargs tar --exclude-from=tar_exclude --exclude-vcs -cvf ants.tar

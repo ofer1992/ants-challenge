@@ -1,0 +1,6 @@
+__init__.py
+*.pyc
+__pycache__
+*.csv
+.idea
+game_logs
