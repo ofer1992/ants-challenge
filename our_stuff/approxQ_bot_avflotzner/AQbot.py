@@ -51,6 +51,7 @@ class BasicExtractor(FeatureExtractor):
             food_distances = [ants.distance(new_ant_loc, f) for f in ants.food()]
             food_d = min(food_distances)
             food_loc = ants.food()[food_distances.index(food_d)]
+            feats["linear-food"] = food_d / map_size
             feats["food"] = 1 - (1 / (1 + math.exp(-0.6 * food_d + 3)))
             feats["will-eat-food"] = 1 if food_d == 1 else 0
             ants_distance_from_food = [ants.distance(ant, food_loc) for ant in ants.my_ants()]
