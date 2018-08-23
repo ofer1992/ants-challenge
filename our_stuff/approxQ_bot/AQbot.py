@@ -1,11 +1,11 @@
 import sys
+import pickle
+import copy
+
 sys.path.append("../../")  # so imports work
 from our_stuff.approxQ_bot.ants import *
 from our_stuff.agents import ApproximateQAgent
-import pickle
 import our_stuff.util
-import copy
-import math
 
 EATING_FOOD_REWARD = 5
 ENEMY_HILL_REWARD = 2000
@@ -159,12 +159,12 @@ class ApproxQBot:
         # saving state and actions for next turn
         self.prev_state = copy.deepcopy(state)
 
-    def do_endgame(self, state):
+    def do_endgame(self, state, round):
         """
         Called once in end of game to update Q-weights.
         """
-        sys.stderr.write("Total reward: "+str(self.accumulated_rewards)+"\n")
-        sys.stderr.write("Turns: "+str(state.turns_so_far)+"\n")
+        if round % 20 == 0:
+            sys.stderr.write("Round "+str(round)+". Total reward: "+str(self.accumulated_rewards)+"\n")
         if self.train and self.prev_state:
             for ant in self.prev_state.my_ants():
                 action = self.prev_state.orders2[ant]
@@ -186,7 +186,6 @@ def run(bot, training_rounds):
     ants = Ants()
     map_data = ''
     rounds = 0
-    survival = [0]*4
     while (True):
         try:
             current_line = sys.stdin.readline()  # string new line char
@@ -206,7 +205,6 @@ def run(bot, training_rounds):
 
             # support for multi-game input
             elif current_line.lower() == 'end':
-                sys.stderr.write("finished game\n")
                 rounds += 1
                 if rounds == training_rounds:
                     sys.stderr.write("training over. dumping weights\n")
@@ -215,21 +213,13 @@ def run(bot, training_rounds):
                     bot.train = False
                 current_line = sys.stdin.readline().rstrip('\r\n')
                 while not current_line.startswith('playerturns'):
-                    sys.stderr.write(current_line+"\n")
-                    if current_line.startswith('status'):
-                        line = current_line.split()
-                        for i in range(1,5):
-                            if line[i] == 'survived':
-                                survival[i-1]+=1
-
-                        sys.stderr.write(str(survival)+"\n")
                     current_line = sys.stdin.readline().rstrip('\r\n')
                 current_line = sys.stdin.readline().rstrip('\r\n')
                 while current_line != 'go':
                     map_data += current_line + '\n'
                     current_line = sys.stdin.readline().rstrip('\r\n')
                 ants.update(map_data)
-                bot.do_endgame(ants)
+                bot.do_endgame(ants, rounds)
                 map_data = ''
             else:
                 map_data += current_line + '\n'
@@ -258,7 +248,7 @@ if __name__ == '__main__':
         # this is not needed, in which case you will need to write your own
         # parsing function and your own game state class
         training_rounds = int(sys.argv[1])
-        b = ApproxQBot(False, True)
+        b = ApproxQBot(training_rounds > 0, True)
         run(b, training_rounds)
 
     except KeyboardInterrupt:
