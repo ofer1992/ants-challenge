@@ -6,6 +6,7 @@ train - train vs HunterBot for a 100 rounds
 fight - 1v1 battle with HunterBot
 food - food collection contest
 maze - maze food collection contest
+ffa - 4 bots, free for all match
 
 Make sure you are using python 2 (otherwise it will fail)
 
