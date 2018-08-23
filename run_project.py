@@ -26,7 +26,7 @@ def one_on_one():
 
 def maze():
     """food collection in maze"""
-    run_line = 'python tools/playgame_rl.py -v -e --turntime=10000 --log_dir game_logs --turns 300 --rounds 1 --map_file=our_stuff/maps/food_maze.map "python our_stuff/approxQ_bot/AQbot_astar.py" "python tools/sample_bots/python/HunterBot.py" "python tools/sample_bots/python/GreedyBot.py" "python tools/sample_bots/python/RandomBot.py"'
+    run_line = 'python tools/playgame_rl.py -v -e --turntime=100000 --log_dir game_logs --turns 300 --rounds 1 --map_file=our_stuff/maps/food_maze.map "python our_stuff/approxQ_bot/AQbot_astar.py" "python tools/sample_bots/python/HunterBot.py" "python tools/sample_bots/python/GreedyBot.py" "python tools/sample_bots/python/RandomBot.py"'
     os.system(run_line)
 
 def ffa():
