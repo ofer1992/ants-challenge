@@ -5,6 +5,7 @@ from our_stuff.agents import ApproximateQAgent
 import pickle
 import our_stuff.util
 import copy
+import math
 
 EATING_FOOD_REWARD = 5
 ENEMY_HILL_REWARD = 2000
