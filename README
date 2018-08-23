@@ -8,7 +8,7 @@ food - food collection contest
 maze - maze food collection contest
 ffa - 4 bots, free for all match
 
-Make sure you are using python 2 (otherwise it will fail)
+Make sure you are using python2.7 and running on linux (otherwise it will fail)
 
 file structure:
 
